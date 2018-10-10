@@ -4,5 +4,6 @@ WORKDIR /code
 RUN pip install python-irodsclient
 RUN pip install lxml
 RUN pip install requests
-RUN mdir /tmp/idv/
+RUN pip install bleach
+RUN mkdir /tmp/idv/
 ENTRYPOINT ["python3","./iRODS_to_Dataverse.py"]
