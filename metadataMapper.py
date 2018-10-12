@@ -16,21 +16,12 @@ class MetadataMapper:
         self.dataset_json = None
         self.md = None
 
-    # def __init__(self, title, creator, description, date, pid):
-    #     self.title = title
-    #     self.creator = creator
-    #     self.description = description
-    #     self.date = date
-    #     self.pid = pid
-    #     self.dataset_json = None
-
     def read_metadata(self):
         with open('template.json') as f:
             self.dataset_json = json.load(f)
 
         self.md = self.dataset_json['datasetVersion']
 
-        # pid = meta_dict.get("PID")
         print("--\t" + self.imetadata.pid)
         logger.info("--\t" + self.imetadata.pid)
 
@@ -319,49 +310,3 @@ class MetadataMapper:
             }
         }
         return new
-
-
-'''
-    def read_metadata(self):
-        # title = meta_dict.get("title")
-        # creator = meta_dict.get("creator")
-        # description = meta_dict.get("description")
-        # date = meta_dict.get("date")
-
-        # dataset_json = None
-        with open('template.json') as f:
-            self.dataset_json = json.load(f)
-
-        md = self.dataset_json['datasetVersion']
-
-        # pid = meta_dict.get("PID")
-        print("--\t" + self.pid)
-        logger.info("--\t" + self.pid)
-
-        pid = self.pid.split("/")
-        self.update_pid(md, pid[0], pid[1])
-
-        new = self.add_author(self.creator)
-        self.update_fields(md, new)
-
-        new = self.add_description(self.description)
-        self.update_fields(md, new)
-
-        new = self.add_date(self.date)
-        self.update_fields(md, new)
-
-        new = self.add_title(self.title)
-        self.update_fields(md, new)
-
-        new = self.add_subject()
-        self.update_fields(md, new)
-
-        new = self.add_contact_email(self.creator)
-        self.update_fields(md, new)
-
-        self.dataset_json['datasetVersion'] = md
-        logger.info(json.dumps(self.dataset_json, indent=4))
-
-        return self.dataset_json
-
-'''

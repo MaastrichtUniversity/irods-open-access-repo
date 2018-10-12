@@ -16,6 +16,7 @@ dataverse_config = {}
 
 """
 TODO
+*Buffer upload
 *Generate checksum
 *Delete collection after update
 """
@@ -37,23 +38,13 @@ def init_parser():
 
 def init_logger():
     logger.setLevel(logging.DEBUG)
-    # create file handler which logs even debug messages
     fh = logging.FileHandler('info.log')
-    # fh.setLevel(logging.DEBUG)
-    # fh.setLevel(logging.ERROR)
-    # create console handler with a higher log level
-    # ch = logging.StreamHandler()
-    # ch.setLevel(logging.ERROR)
-    # create formatter and add it to the handlers
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
-    # ch.setFormatter(formatter)
-    # add the handlers to the logger
     logger.addHandler(fh)
-    # logger.addHandler(ch)
 
 
-def parse_config(ini, collection, dataverse_alias):
+def parse_config(ini):
     print("Read config file")
     logger.info("Read config file")
     config = configparser.ConfigParser()
@@ -65,16 +56,12 @@ def parse_config(ini, collection, dataverse_alias):
     iRODS_config.update({"user": config['iRODS']['user']})
     iRODS_config.update({"password": config['iRODS']['password']})
     iRODS_config.update({"zone": config['iRODS']['zone']})
-    # iRODS_config.update({"collection_fullpath": collection})
-    # iRODS_config.update({"collection_fullpath": config['iRODS']['collection_fullpath']})
     iRODS_config.update({"tmp_datasetfilepath": config['iRODS']['tmp_datasetfilepath']})
 
     # Dataverse config init
     dataverse_config.update({"host": config['Dataverse']['host']})
     dataverse_config.update({"token": config['Dataverse']['token']})
-    dataverse_config.update({"alias": dataverse_alias})
 
-    # dataverse_config.update({"alias": config['Dataverse']['dataverse_alias']})
 
 def create_tmp_dir(path, collection):
     path = path + collection + os.sep
@@ -82,11 +69,12 @@ def create_tmp_dir(path, collection):
 
     return path
 
+
 def main():
     #Init
     args = init_parser()
     init_logger()
-    parse_config(args.ini, args.collection, args.dataverseAlias)
+    parse_config(args.ini)
 
     #iRODS
     host = iRODS_config.get("host")
@@ -96,35 +84,21 @@ def main():
     zone = iRODS_config.get("zone")
     path = iRODS_config.get("tmp_datasetfilepath")
     collection = args.collection
-    # collection = iRODS_config.get("collection_fullpath")
 
     path = create_tmp_dir(path, collection)
 
     iclient = irodsClient()
     iclient.connect(host, port, user, password, zone)
-    meta_dict = iclient.read_collection(collection)
-    # print(meta_dict.keys())
-    # print(meta_dict)
-    print(iclient.imetadata.__dict__)
-    # print(list(meta_dict.keys()))
+    iclient.read_collection(collection)
     iclient.write(path)
 
-    # # Metadata mapping
-    # title = meta_dict.get("title")
-    # creator = meta_dict.get("creator")
-    # description = meta_dict.get("description")
-    # date = meta_dict.get("date")
-    # pid = meta_dict.get("PID")
-    #
-    # mapper = metadataMapper(title, creator, description, date, pid)
     mapper = MetadataMapper(iclient.imetadata)
     md = mapper.read_metadata()
 
     #Dataverse
     host = dataverse_config.get("host")
     token = dataverse_config.get("token")
-    alias = dataverse_config.get("alias")
-    # path = dataverse_config.get("tmp_datasetfilepath")
+    alias = args.dataverseAlias
 
     dv = dataverseClient(host, alias, token, path, iclient.imetadata.pid, md)
     dv.import_dataset()

@@ -62,12 +62,6 @@ class dataverseClient():
                 self.dataset_status = resp.status_code
 
     def import_files(self):
-        """
-
-        :type status: int
-        """
-
-        # pid = meta_dict.get("PID")
         url_file = self.host + "/api/datasets/:persistentId/add?persistentId=hdl:" + self.pid
 
         if self.dataset_status == 404:
