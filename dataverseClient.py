@@ -2,8 +2,6 @@ import json
 import logging
 import requests
 
-import os
-
 logger = logging.getLogger('iRODS to Dataverse')
 
 
@@ -13,7 +11,6 @@ class dataverseClient():
         self.host = host
         self.alias = alias
         self.token = token
-        # self.path = path
         self.pid = irodsclient.imetadata.pid
         self.md = md
         self.collection = irodsclient.coll
@@ -23,14 +20,12 @@ class dataverseClient():
     def check_dataset_exist(self):
         print("Check if dataset exists")
         logger.info("Check if dataset exists")
-        #
-        # pid = meta_dict.get("PID")
+
         url = self.host + "/api/datasets/:persistentId/?persistentId=hdl:" + self.pid
         resp = requests.get(
             url=url,
             headers={'X-Dataverse-key': self.token},
         )
-        # print(resp.status_code)
         logger.info(resp.content)
         return resp.status_code
 
@@ -41,7 +36,6 @@ class dataverseClient():
         url = self.host + "/api/dataverses/" + self.alias + "/datasets/:import?pid=hdl:" + self.pid + "&release=no"
 
         status = self.check_dataset_exist()
-        # print(status)
         if status == 200:
             print("--\t" + "Dataset already exists, abort import")
             logger.info("--\t" + "Dataset already exists, abort import")
@@ -68,7 +62,6 @@ class dataverseClient():
 
         if self.dataset_status == 404:
             self.upload_file(url_file)
-
             print("Upload Done")
             logger.info("Upload Done")
 
@@ -99,43 +92,13 @@ class dataverseClient():
                 files=files,
                 headers={'X-Dataverse-key': self.token},
             )
-            # print(resp.status_code)
             if resp.status_code == 200:
                 print("--\t\t\t" + json.loads(resp.content)['status'])
-                # logger.info("--\t\t\t" + json.loads(resp.content)['status'])
                 logger.info(resp.content)
             elif resp.status_code == 400:
-                # print(resp.status_code)
                 print("--\t\t\t" + json.loads(resp.content)['message'])
                 logger.error("--\t\t\t" + json.loads(resp.content)['message'])
             else:
                 print(resp.status_code)
                 print("--\t\t\t" + json.loads(resp.content)['status'])
                 logger.info(resp.content)
-
-
-        # assert base64.b64decode(res.json()['data'][len('data:application/octet-stream;base64,'):]) == data
-
-        ''''
-        for file in os.listdir(self.path):
-            print("--\t" + file)
-            logger.info("--\t" + file)
-            files = {'file': open(self.path + file, 'rb'),
-                     'jsonData': '{"description": "My API test description.",'
-                                 ' "categories": ["Data"], "restrict": "false"}'}
-            resp = requests.post(
-                url,
-                files=files,
-                headers={'X-Dataverse-key': self.token},
-            )
-            # print(resp.status_code)
-            if resp.status_code == 200:
-                print("--\t\t\t" + json.loads(resp.content)['status'])
-                # logger.info("--\t\t\t" + json.loads(resp.content)['status'])
-                logger.info(resp.content)
-            if resp.status_code == 400:
-                print("--\t\t\t" + json.loads(resp.content)['message'])
-                logger.error("--\t\t\t" + json.loads(resp.content)['message'])
-            else:
-                logger.info(resp.content)
-        '''

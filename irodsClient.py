@@ -9,12 +9,6 @@ logger = logging.getLogger('iRODS to Dataverse')
 
 class irodsClient():
 
-    # def __init__(self, host='', port='', user='', password='', zone=''):
-    # self.host = host
-    # self.port = port
-    # self.user = user
-    # self.password = password
-    # self.zone = zone
     def __init__(self, config):
         self.host = config.get("host")
         self.port = config.get("port")
@@ -25,13 +19,6 @@ class irodsClient():
         self.session = None
         self.coll = None
         self.imetadata = irodsMetadata()
-
-    # def connect(self):
-    #     self.session = iRODSSession(self.host,
-    #                                 self.port,
-    #                                 self.user,
-    #                                 self.password,
-    #                                 self.zone)
 
     def connect(self, host=None, port=None, user=None, password=None, zone=None):
         print("Connect to iRODS")
@@ -107,12 +94,3 @@ class irodsClient():
         self.imetadata.contact = self.read_tag_node_dict(root, "contact")
 
         self.imetadata.articles = self.read_tag_list(root, "article")
-
-    def write(self, files_path):
-        print("Copy local collection replica")
-        logger.info("Copy local collection replica")
-        for data in self.coll.data_objects:
-            # physical_path = session.data_objects.get(data.path).replicas[0].path
-            buff = self.session.data_objects.open(data.path, 'r').read()
-            with open(files_path + data.name, 'wb') as f:
-                f.write(buff)

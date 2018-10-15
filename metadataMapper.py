@@ -47,7 +47,8 @@ class MetadataMapper:
 
         for c in self.imetadata.contact:
             if len(c) != 0:
-                pub = self.add_contact(c.get("firstName")+" "+c.get("lastName"), c.get("email"), c.get("affiliation"))
+                pub = self.add_contact(c.get("firstName") + " " + c.get("lastName"), c.get("email"),
+                                       c.get("affiliation"))
                 contacts.append(pub)
 
         self.add_contacts(contacts)
@@ -59,7 +60,8 @@ class MetadataMapper:
             keywords.append(keyword)
 
         if self.imetadata.technology:
-            keyword = self.add_keyword(self.imetadata.technology.get("name"), self.imetadata.technology.get("vocabulary"),
+            keyword = self.add_keyword(self.imetadata.technology.get("name"),
+                                       self.imetadata.technology.get("vocabulary"),
                                        self.imetadata.technology.get("uri"))
             keywords.append(keyword)
 
