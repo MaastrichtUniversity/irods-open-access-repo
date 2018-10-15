@@ -9,13 +9,15 @@ logger = logging.getLogger('iRODS to Dataverse')
 
 class dataverseClient():
 
-    def __init__(self, host, alias, token, path, pid, md):
+    def __init__(self, host, alias, token, irodsclient, md):
         self.host = host
         self.alias = alias
         self.token = token
-        self.path = path
-        self.pid = pid
+        # self.path = path
+        self.pid = irodsclient.imetadata.pid
         self.md = md
+        self.collection = irodsclient.coll
+        self.session = irodsclient.session
         self.dataset_status = None
 
     def check_dataset_exist(self):
@@ -41,8 +43,8 @@ class dataverseClient():
         status = self.check_dataset_exist()
         # print(status)
         if status == 200:
-            print("Dataset already exists, abort import")
-            logger.info("Dataset already exists, abort import")
+            print("--\t" + "Dataset already exists, abort import")
+            logger.info("--\t" + "Dataset already exists, abort import")
             self.dataset_status = status
 
         elif status == 404:
@@ -84,6 +86,37 @@ class dataverseClient():
         print("Upload files:")
         logger.info("Upload files:")
 
+        for data in self.collection.data_objects:
+            buff = self.session.data_objects.open(data.path, 'r')
+
+            print("--\t" + data.name)
+            logger.info("--\t" + data.name)
+            files = {'file': (data.name, buff),
+                     'jsonData': '{"description": "My API test description.",'
+                                 ' "categories": ["Data"], "restrict": "false"}'}
+            resp = requests.post(
+                url,
+                files=files,
+                headers={'X-Dataverse-key': self.token},
+            )
+            # print(resp.status_code)
+            if resp.status_code == 200:
+                print("--\t\t\t" + json.loads(resp.content)['status'])
+                # logger.info("--\t\t\t" + json.loads(resp.content)['status'])
+                logger.info(resp.content)
+            elif resp.status_code == 400:
+                # print(resp.status_code)
+                print("--\t\t\t" + json.loads(resp.content)['message'])
+                logger.error("--\t\t\t" + json.loads(resp.content)['message'])
+            else:
+                print(resp.status_code)
+                print("--\t\t\t" + json.loads(resp.content)['status'])
+                logger.info(resp.content)
+
+
+        # assert base64.b64decode(res.json()['data'][len('data:application/octet-stream;base64,'):]) == data
+
+        ''''
         for file in os.listdir(self.path):
             print("--\t" + file)
             logger.info("--\t" + file)
@@ -103,5 +136,6 @@ class dataverseClient():
             if resp.status_code == 400:
                 print("--\t\t\t" + json.loads(resp.content)['message'])
                 logger.error("--\t\t\t" + json.loads(resp.content)['message'])
-            # else:
-            #     logger.info(resp.content)
+            else:
+                logger.info(resp.content)
+        '''

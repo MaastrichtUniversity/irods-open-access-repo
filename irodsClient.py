@@ -6,31 +6,49 @@ from irodsMetadata import irodsMetadata
 
 logger = logging.getLogger('iRODS to Dataverse')
 
+
 class irodsClient():
 
-    def __init__(self, host='', port='', user='', password='', zone=''):
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-        self.zone = zone
+    # def __init__(self, host='', port='', user='', password='', zone=''):
+    # self.host = host
+    # self.port = port
+    # self.user = user
+    # self.password = password
+    # self.zone = zone
+    def __init__(self, config):
+        self.host = config.get("host")
+        self.port = config.get("port")
+        self.user = config.get("user")
+        self.password = config.get("password")
+        self.zone = config.get("zone")
+
         self.session = None
         self.coll = None
         self.imetadata = irodsMetadata()
 
-    def connect(self, host, port, user, password, zone):
+    # def connect(self):
+    #     self.session = iRODSSession(self.host,
+    #                                 self.port,
+    #                                 self.user,
+    #                                 self.password,
+    #                                 self.zone)
+
+    def connect(self, host=None, port=None, user=None, password=None, zone=None):
         print("Connect to iRODS")
         logger.info("Connect to iRODS")
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-        self.zone = zone
-        self.session = iRODSSession(host=host,
-                                    port=port,
-                                    user=user,
-                                    password=password,
-                                    zone=zone)
+
+        if host and port and user and password and zone is None:
+            self.host = host
+            self.port = port
+            self.user = user
+            self.password = password
+            self.zone = zone
+
+        self.session = iRODSSession(host=self.host,
+                                    port=self.port,
+                                    user=self.user,
+                                    password=self.password,
+                                    zone=self.zone)
 
     def read_tag(self, root, tag):
         if root.find(tag).text is not None:

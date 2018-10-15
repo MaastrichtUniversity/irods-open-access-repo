@@ -47,7 +47,6 @@ class MetadataMapper:
 
         for c in self.imetadata.contact:
             if len(c) != 0:
-                print(type(c))
                 pub = self.add_contact(c.get("firstName")+" "+c.get("lastName"), c.get("email"), c.get("affiliation"))
                 contacts.append(pub)
 

@@ -16,7 +16,6 @@ dataverse_config = {}
 
 """
 TODO
-*Buffer upload
 *Generate checksum
 *Delete collection after update
 """
@@ -56,7 +55,7 @@ def parse_config(ini):
     iRODS_config.update({"user": config['iRODS']['user']})
     iRODS_config.update({"password": config['iRODS']['password']})
     iRODS_config.update({"zone": config['iRODS']['zone']})
-    iRODS_config.update({"tmp_datasetfilepath": config['iRODS']['tmp_datasetfilepath']})
+    # iRODS_config.update({"tmp_datasetfilepath": config['iRODS']['tmp_datasetfilepath']})
 
     # Dataverse config init
     dataverse_config.update({"host": config['Dataverse']['host']})
@@ -65,7 +64,7 @@ def parse_config(ini):
 
 def create_tmp_dir(path, collection):
     path = path + collection + os.sep
-    os.makedirs(path,exist_ok=True)
+    os.makedirs(path, exist_ok=True)
 
     return path
 
@@ -82,15 +81,16 @@ def main():
     user = iRODS_config.get("user")
     password = iRODS_config.get("password")
     zone = iRODS_config.get("zone")
-    path = iRODS_config.get("tmp_datasetfilepath")
+    # path = iRODS_config.get("tmp_datasetfilepath")
     collection = args.collection
 
-    path = create_tmp_dir(path, collection)
+    # path = create_tmp_dir(path, collection)
 
-    iclient = irodsClient()
-    iclient.connect(host, port, user, password, zone)
+    iclient = irodsClient(iRODS_config)
+    iclient.connect()
+    # iclient.connect(host, port, user, password, zone)
     iclient.read_collection(collection)
-    iclient.write(path)
+    # iclient.write(path)
 
     mapper = MetadataMapper(iclient.imetadata)
     md = mapper.read_metadata()
@@ -100,7 +100,7 @@ def main():
     token = dataverse_config.get("token")
     alias = args.dataverseAlias
 
-    dv = dataverseClient(host, alias, token, path, iclient.imetadata.pid, md)
+    dv = dataverseClient(host, alias, token, iclient, md)
     dv.import_dataset()
     dv.import_files()
 
