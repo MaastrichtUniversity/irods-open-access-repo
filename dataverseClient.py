@@ -4,7 +4,6 @@ import hashlib
 import json
 import logging
 import unicodedata
-from io import BufferedRandom
 import io
 import requests
 from irods.rule import Rule
@@ -94,14 +93,14 @@ class dataverseClient():
     def rule_open(self):
         split = self.path.split("/")
         project = split[3]
-        colle = split[4]
+        collectionID = split[4]
 
         print("Rule open")
         logger.info("Rule open")
 
         open_rule = Rule(self.session, "openProjectCollection.r")
         open_rule.params.update({"*project": "\'" + project + "\'"})
-        open_rule.params.update({"*projectCollection": "\'" + colle + "\'"})
+        open_rule.params.update({"*projectCollection": "\'" + collectionID + "\'"})
 
         print(open_rule.params)
 
@@ -110,14 +109,14 @@ class dataverseClient():
     def rule_close(self):
         split = self.path.split("/")
         project = split[3]
-        colle = split[4]
+        collectionID = split[4]
 
         print("Rule open")
         logger.info("Rule open")
 
         open_rule = Rule(self.session, "closeProjectCollection.r")
         open_rule.params.update({"*project": "\'" + project + "\'"})
-        open_rule.params.update({"*projectCollection": "\'" + colle + "\'"})
+        open_rule.params.update({"*projectCollection": "\'" + collectionID + "\'"})
 
         print(open_rule.params)
 
@@ -146,30 +145,16 @@ class dataverseClient():
 
                 buff_read = buff_read + chunk
 
-            # irods_sha.hexdigest()
-            # print(irods_sha)
-            # print("SHA-256:\t", irods_sha == irods_hash_decode)
-
             split = data.path.split("/")
             project = split[3]
-            colle = split[4]
-            # print("Rule open")
-            # logger.info("Rule open")
-            #
-            # open_rule = Rule(self.session, "openProjectCollection.r")
-            # open_rule.params.update({"*project":  "\'"+project+"\'"})
-            # open_rule.params.update({"*projectCollection": "\'"+colle+"\'"})
-            # open_rule.params.update({"*fileName": "\'"+data.name+"\'"})
-            # print(open_rule.params)
-            #
-            # # open_rule.execute()
+            collectionID = split[4]
 
             print("Rule checksum")
             logger.info("Rule checksum")
 
             cksRule = Rule(self.session, "checksums.r")
             cksRule.params.update({"*project":  "\'"+project+"\'"})
-            cksRule.params.update({"*projectCollection": "\'"+colle+"\'"})
+            cksRule.params.update({"*projectCollection": "\'"+collectionID+"\'"})
             cksRule.params.update({"*fileName": "\'"+data.name+"\'"})
 
             irods_hash = self.parse_rule_output(cksRule.execute()).strip("sha2:")
@@ -180,18 +165,10 @@ class dataverseClient():
 
             sha = irods_sha.hexdigest()
 
-            print(sha)
-            print("SHA-256:\t", sha == irods_hash_decode)
-
-            # irods_md5 = hashlib.md5()
-            # irods_md5.update(buff_read)
+            print("SHA-256 test:\t", sha == irods_hash_decode)
             print("iRODS md5:\t", irods_md5.hexdigest())
 
             self.session.cleanup()
-
-            # buff.close()
-            #
-            # copy_buff = self.session.data_objects.open(data.path, 'r')
 
             print("--\t" + data.name)
             logger.info("--\t" + data.name)
@@ -210,7 +187,6 @@ class dataverseClient():
                 logger.info(resp.content)
                 md5 = json.loads(resp.content)['data']['files'][0]['dataFile']['md5']
                 print(md5)
-                # print(irods_md5.hexdigest())
                 print("Dataverse check md5:\t", md5 == irods_md5.hexdigest())
             elif resp.status_code == 400:
                 print("--\t\t\t" + json.loads(resp.content)['message'])
@@ -219,46 +195,5 @@ class dataverseClient():
                 logger.info(resp.content)
                 print(resp.status_code)
                 print("--\t\t\t" + json.loads(resp.content)['status'])
-            #
-
-
-            # for data in self.collection.data_objects:
-            #     buff = self.session.data_objects.open(data.path, 'r')
-            #     buff_read = buff.read()
-            #     sha = hashlib.sha256(buff_read).hexdigest()
-            #     print(sha)
-            #     print("SHA-256:\t", sha == irods_hash_decode)
-            #     md5 = hashlib.md5()
-            #     md5.update(buff_read)
-            #     print("iRODS md5:\t", md5.hexdigest())
-            #     print(md5.hexdigest() == "54f886449a984b0776bc7a00a559b20f")
-            #     # 54f886449a984b0776bc7a00a559b20f
-            #
-            # close_rule = Rule(self.session, "closeProjectCollection.r")
-            # close_rule.params.update({"*project": "'P000000009'"})
-            # close_rule.params.update({"*projectCollection": "'C000000001'"})
-            # close_rule.execute()
-
-            '''
-            
-            b'{"status":"OK",
-            "data":{
-                "files":[{
-                        "description":"My API test description.",
-                        "label":"Test2.txt",
-                        "restricted":false,"
-                        version":1,
-                        "datasetVersionId":27,
-                        "categories":["Data"],
-                        "dataFile":{"id":138,"persistentId":"","pidURL":"","filename":"Test2.txt",
-                                    "contentType":"text/plain","filesize":6,"description":"My API test description.",
-                                    "storageIdentifier":"16676f77796-106489618dc2",
-                                    "originalFormatLabel":"UNKNOWN","rootDataFileId":-1,
-                                    "md5":"d8578edf8458ce06fbc5bb76a58c5ca4",
-                                    "checksum":{"type":"MD5","value":"d8578edf8458ce06fbc5bb76a58c5ca4"}}}]}}'
-                        
-            
-            
-            '''
 
         self.rule_close()
