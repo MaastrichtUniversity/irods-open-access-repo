@@ -31,6 +31,10 @@ class irodsClient():
             self.password = password
             self.zone = zone
 
+        # self.session = iRODSSession(irods_env_file="irods_environment.json")
+        #
+        # print(self.session.server_version)
+
         self.session = iRODSSession(host=self.host,
                                     port=self.port,
                                     user=self.user,
