@@ -7,6 +7,8 @@ import unicodedata
 import io
 import requests
 from irods.rule import Rule
+from requests.auth import HTTPBasicAuth
+
 logger = logging.getLogger('iRODS to Dataverse')
 
 
@@ -111,8 +113,8 @@ class dataverseClient():
         project = split[3]
         collectionID = split[4]
 
-        print("Rule open")
-        logger.info("Rule open")
+        print("Rule close")
+        logger.info("Rule close")
 
         open_rule = Rule(self.session, "closeProjectCollection.r")
         open_rule.params.update({"*project": "\'" + project + "\'"})
@@ -125,8 +127,12 @@ class dataverseClient():
     def chunks(self, f, chunksize=io.DEFAULT_BUFFER_SIZE):
         return iter(lambda: f.read(chunksize), b'')
 
-    def upload_file(self, url):
+    def gen(self, r):
+        for chunk in r.iter_content(chunk_size=io.DEFAULT_BUFFER_SIZE):
+            if chunk:
+                yield chunk
 
+    def upload_file(self, url):
         print("Upload files:")
         logger.info("Upload files:")
         self.rule_open()
@@ -157,13 +163,15 @@ class dataverseClient():
             cksRule.params.update({"*projectCollection": "\'"+collectionID+"\'"})
             cksRule.params.update({"*fileName": "\'"+data.name+"\'"})
 
-            irods_hash = self.parse_rule_output(cksRule.execute()).strip("sha2:")
+            irods_hash = self.parse_rule_output(cksRule.execute()).split('sha2:')[1]
+            # print(irods_hash)
             base_hash = base64.b64decode(irods_hash)
             irods_hash_decode = binascii.hexlify(base_hash).decode("utf-8")
 
-            print(irods_hash_decode)
+            # print(irods_hash_decode)
 
             sha = irods_sha.hexdigest()
+            print(sha)
 
             print("SHA-256 test:\t", sha == irods_hash_decode)
             print("iRODS md5:\t", irods_md5.hexdigest())
@@ -188,6 +196,14 @@ class dataverseClient():
                 md5 = json.loads(resp.content)['data']['files'][0]['dataFile']['md5']
                 print(md5)
                 print("Dataverse check md5:\t", md5 == irods_md5.hexdigest())
+                if md5 == irods_md5.hexdigest() and data.name != "metadata.xml":
+                    rule = Rule(self.session, "deleteDataObject.r")
+                    rule.params.update({"*project":  "\'"+project+"\'"})
+                    rule.params.update({"*projectCollection": "\'"+collectionID+"\'"})
+                    rule.params.update({"*fileName": "\'"+data.name+"\'"})
+                    out = self.parse_rule_output(rule.execute())
+                    if out == 0:
+                        print("File:\t" + data.name + "\t deleted")
             elif resp.status_code == 400:
                 print("--\t\t\t" + json.loads(resp.content)['message'])
                 logger.error("--\t\t\t" + json.loads(resp.content)['message'])
