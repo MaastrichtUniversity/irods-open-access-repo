@@ -16,8 +16,11 @@ dataverse_config = {}
 
 """
 TODO
-*Generate checksum
-*Delete collection after update
+*Deletion option
+*Persistent docker container
+*Parallel upload
+
+* archive  => uncompressed
 """
 
 
@@ -29,7 +32,9 @@ def init_parser():
     parser.add_argument('-c', "--collection", required=True,
                         help='path to the iRODS collection ')
     parser.add_argument('-a', "--dataverseAlias", required=True,
-                        help='alias or id of the dataverse where to upload the files)')
+                        help='alias or id of the dataverse where to upload the files')
+    parser.add_argument('-d', "--delete", required=False, action='store_true',
+                        help='delete the collections files after upload')
     args = parser.parse_args()
 
     return args
@@ -61,47 +66,35 @@ def parse_config(ini):
     dataverse_config.update({"token": config['Dataverse']['token']})
 
 
-def create_tmp_dir(path, collection):
-    path = path + collection + os.sep
-    os.makedirs(path, exist_ok=True)
-
-    return path
-
-
-def parse_rule_output(out_param_array):
-    buff = out_param_array.MsParam_PI[0].inOutStruct.stdoutBuf.buf
-    buff = buff.decode('utf-8')
-    buf_cleaned = "".join(ch for ch in buff if unicodedata.category(ch)[0] != "C")
-
-    return buf_cleaned
-
-
 def main():
     # Init
+    print("Init")
     args = init_parser()
     init_logger()
     parse_config(args.ini)
 
     # iRODS
+    print("iRODS")
     collection = args.collection
     iclient = irodsClient(iRODS_config)
 
     iclient.connect()
     iclient.read_collection(collection)
 
-    iclient.imetadata.__dict__.update({"pid": "21.T12996/P000000009C000000004"})
-    print(iclient.imetadata.__dict__)
+    # Metadata
+    print("Metadata")
     mapper = MetadataMapper(iclient.imetadata)
     md = mapper.read_metadata()
 
-    #Dataverse
+    # Dataverse
+    print("Dataverse")
     host = dataverse_config.get("host")
     token = dataverse_config.get("token")
     alias = args.dataverseAlias
 
     dv = dataverseClient(host, alias, token, iclient, md, collection)
     dv.import_dataset()
-    dv.import_files()
+    dv.import_files(args.delete)
 
 
 if __name__ == "__main__":

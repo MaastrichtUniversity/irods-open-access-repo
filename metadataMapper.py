@@ -46,7 +46,7 @@ class MetadataMapper:
         contacts.append(contact_email)
 
         for c in self.imetadata.contact:
-            if len(c) != 0:
+            if len(c) != 0 and c.get("email") is not None:
                 pub = self.add_contact(c.get("firstName") + " " + c.get("lastName"), c.get("email"),
                                        c.get("affiliation"))
                 contacts.append(pub)
@@ -85,7 +85,7 @@ class MetadataMapper:
         self.add_publications(publications)
 
         self.dataset_json['datasetVersion'] = self.md
-        logger.info(json.dumps(self.dataset_json, indent=4))
+        # logger.info(json.dumps(self.dataset_json, indent=4))
 
         return self.dataset_json
 
