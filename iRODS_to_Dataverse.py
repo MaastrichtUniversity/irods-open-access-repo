@@ -2,11 +2,9 @@ import configparser
 import logging
 
 import argparse
-import os
-import unicodedata
 from builtins import print
 
-from dataverseClient import dataverseClient
+from dataverseClient import DataverseClient
 from irodsClient import irodsClient
 from metadataMapper import MetadataMapper
 
@@ -16,7 +14,6 @@ dataverse_config = {}
 
 """
 TODO
-*Deletion option
 *Persistent docker container
 *Parallel upload
 
@@ -79,7 +76,7 @@ def main():
     iclient = irodsClient(iRODS_config)
 
     iclient.connect()
-    iclient.read_collection(collection)
+    iclient.read_collection_metadata(collection)
 
     # Metadata
     print("Metadata")
@@ -92,8 +89,8 @@ def main():
     token = dataverse_config.get("token")
     alias = args.dataverseAlias
 
-    dv = dataverseClient(host, alias, token, iclient, md, collection)
-    dv.import_dataset()
+    dv = DataverseClient(host, token, alias, iclient)
+    dv.import_dataset(md)
     dv.import_files(args.delete)
 
 

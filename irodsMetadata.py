@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger('iRODS to Dataverse')
 
 
-class irodsMetadata():
+class irodsMetadata:
 
     def __init__(self):
         self.title = None

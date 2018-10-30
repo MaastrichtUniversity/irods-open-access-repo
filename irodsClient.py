@@ -2,6 +2,7 @@ from irods.session import iRODSSession
 import xml.etree.ElementTree as ET
 import logging
 
+from RuleManager import RuleManager
 from irodsMetadata import irodsMetadata
 
 logger = logging.getLogger('iRODS to Dataverse')
@@ -19,6 +20,7 @@ class irodsClient():
         self.session = None
         self.coll = None
         self.imetadata = irodsMetadata()
+        self.rulemanager = None
 
     def connect(self, host=None, port=None, user=None, password=None, zone=None):
         print("Connect to iRODS")
@@ -68,7 +70,7 @@ class irodsClient():
                     node_dict.update({k.tag: k.text})
         return [node_dict]
 
-    def read_collection(self, collection_fullpath):
+    def read_collection_metadata(self, collection_fullpath):
         print("Read collection metadata")
         logger.info("Read collection metadata")
         self.coll = self.session.collections.get(collection_fullpath)
@@ -94,3 +96,5 @@ class irodsClient():
         self.imetadata.contact = self.read_tag_node_dict(root, "contact")
 
         self.imetadata.articles = self.read_tag_list(root, "article")
+
+        self.rulemanager = RuleManager(collection_fullpath, self.session)

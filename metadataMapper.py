@@ -17,6 +17,9 @@ class MetadataMapper:
         self.md = None
 
     def read_metadata(self):
+        print("Map metadata")
+        logger.info("Map metadata")
+
         with open('template.json') as f:
             self.dataset_json = json.load(f)
 
@@ -46,7 +49,11 @@ class MetadataMapper:
         contacts.append(contact_email)
 
         for c in self.imetadata.contact:
-            if len(c) != 0 and c.get("email") is not None:
+            if len(c) != 0:
+                if c.get("email") is None:
+                    c.update({"email": ""})
+                if c.get("affiliation") is None:
+                    c.update({"affiliation": ""})
                 pub = self.add_contact(c.get("firstName") + " " + c.get("lastName"), c.get("email"),
                                        c.get("affiliation"))
                 contacts.append(pub)
