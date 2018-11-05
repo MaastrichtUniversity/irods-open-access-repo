@@ -4,8 +4,11 @@ logger = logging.getLogger('iRODS to Dataverse')
 
 
 class irodsMetadata:
-
+    """
+    Store all metadata from iRODS
+    """
     def __init__(self):
+
         self.title = None
         self.creator = None
         self.description = None

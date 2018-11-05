@@ -8,14 +8,21 @@ logger = logging.getLogger('iRODS to Dataverse')
 
 
 class RuleManager:
-
-    def __init__(self, path, session):
-
+    """
+           Manager to execute iRods rules
+    """
+    def __init__(self, path, session, collection):
+        """
+        :param path: collection path, where to apply the rules
+        :param session: iRODS connection session
+        :param collection: collection irods data object
+        """
         split = path.split("/")
         self.projectID = split[3]
         self.collectionID = split[4]
 
         self.session = session
+        self.collection = collection
 
     def rule_open(self):
         print("Rule open")

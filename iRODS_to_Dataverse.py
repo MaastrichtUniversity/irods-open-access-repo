@@ -14,14 +14,20 @@ dataverse_config = {}
 
 """
 TODO
-*Persistent docker container
+*Add/Remove AVU without unit
 *Parallel upload
 
-* archive  => uncompressed
+*Archive  => uncompressed
 """
 
 
 def init_parser():
+    """
+    Initiate argument parser
+
+    :rtype: argparse
+    :return: parse_args
+    """
     parser = argparse.ArgumentParser(usage='%(prog)s [options]',
                                      description='Upload data from iRODS to Dataverse.')
     parser.add_argument('-i', "--ini", required=True,
@@ -32,12 +38,18 @@ def init_parser():
                         help='alias or id of the dataverse where to upload the files')
     parser.add_argument('-d', "--delete", required=False, action='store_true',
                         help='delete the collections files after upload')
+    parser.add_argument('-r', "--restrict", required=False, action='store_true',
+                        help='restrict all uploaded files')
     args = parser.parse_args()
 
     return args
 
 
 def init_logger():
+    """
+    Initiate logging handler and formatter
+    Level DEBUG
+    """
     logger.setLevel(logging.DEBUG)
     fh = logging.FileHandler('info.log')
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -46,6 +58,11 @@ def init_logger():
 
 
 def parse_config(ini):
+    """
+    Parse the configuration file with iRODS & Dataverse credentials
+
+    :param ini: Path to the configuration file *.ini
+    """
     print("Read config file")
     logger.info("Read config file")
     config = configparser.ConfigParser()
@@ -78,6 +95,10 @@ def main():
     iclient.connect()
     iclient.read_collection_metadata(collection)
 
+    iColl = iclient.session.data_objects.get(collection)
+
+    iColl.metadata.add('exporterState', 'prepare-export', '0')
+
     # Metadata
     print("Metadata")
     mapper = MetadataMapper(iclient.imetadata)
@@ -89,9 +110,15 @@ def main():
     token = dataverse_config.get("token")
     alias = args.dataverseAlias
 
+    iColl.metadata.remove('exporterState', 'prepare-export', '0')
+    iColl.metadata.add('exporterState', 'export', '1')
+
     dv = DataverseClient(host, token, alias, iclient)
     dv.import_dataset(md)
-    dv.import_files(args.delete)
+    dv.import_files(args.delete, args.restrict)
+
+    iColl.metadata.remove('exporterState', 'export', '1')
+    iColl.metadata.add('exporterState', 'exported', '2')
 
 
 if __name__ == "__main__":

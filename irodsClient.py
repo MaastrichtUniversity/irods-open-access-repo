@@ -97,4 +97,5 @@ class irodsClient():
 
         self.imetadata.articles = self.read_tag_list(root, "article")
 
-        self.rulemanager = RuleManager(collection_fullpath, self.session)
+        self.rulemanager = RuleManager(collection_fullpath, self.session, self.coll)
+        self.rulemanager.rule_open()

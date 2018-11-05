@@ -9,6 +9,9 @@ logger = logging.getLogger('iRODS to Dataverse')
 
 
 class DataverseClient:
+    """
+    Dataverse client to import datasets and files
+    """
 
     READ_BUFFER_SIZE = 128 * io.DEFAULT_BUFFER_SIZE
 
@@ -18,6 +21,13 @@ class DataverseClient:
     HTTP_STATUS_NotFound = 404
 
     def __init__(self, host, token, alias, irodsclient):
+        """
+
+        :param host: String IP of the dataverse's host
+        :param token: String token credential
+        :param alias: String Alias/ID of the dataverse where to import dataset & files
+        :param irodsclient: irodsClient object - client to user iRODS database
+        """
         self.host = host
         self.alias = alias
         self.token = token
@@ -61,22 +71,22 @@ class DataverseClient:
             else:
                 logger.error(resp.content)
 
-    def import_files(self, deletion=False):
+    def import_files(self, deletion=False, restrict=False):
         url_file = self.host + "/api/datasets/:persistentId/add?persistentId=hdl:" + self.pid
 
         # if self.dataset_status == 404:
         #     self.upload_file(url_file, deletion)
 
         if self.dataset_status == self.HTTP_STATUS_OK:
-            self.upload_file(url_file, deletion)
+            self.import_file(url_file, deletion, restrict)
 
         elif self.dataset_status == self.HTTP_STATUS_Created:
-            self.upload_file(url_file, deletion)
+            self.import_file(url_file, deletion, restrict)
 
         else:
             logger.error("Skip import_files")
 
-    def upload_file(self, url, deletion=False):
+    def import_file(self, url, deletion, restrict):
         self.rulemanager.rule_open()
         logger.info("Upload files:")
 
@@ -101,10 +111,14 @@ class DataverseClient:
             if sha_hexdigest == irods_hash_decode:
                 logger.info("--\t\t\t SHA-256 test:\t True")
 
+                flag = "false"
+                if restrict:
+                    flag = "true"
+
                 files = {'file': (data.name, buff_read),
                          'jsonData': '{"description": "My API test description.",'
                                      ' "categories": ["Data"],'
-                                     ' "restrict": "false"'
+                                     ' "restrict": "' + flag + '"'
                                      '}'
                          }
 
@@ -129,8 +143,7 @@ class DataverseClient:
         logger.info(upload_success)
         if deletion:
             self.rulemanager.rule_deletion(upload_success)
-        self.rulemanager.rule_close()
-        logger.info("Upload Done")
+
 
     def chunks(self, f, chunksize=io.DEFAULT_BUFFER_SIZE):
         return iter(lambda: f.read(chunksize), b'')

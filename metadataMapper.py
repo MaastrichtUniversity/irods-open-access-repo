@@ -10,7 +10,9 @@ self.protocol = None
 
 
 class MetadataMapper:
-
+    """
+        Map iRODS metadata to the Open Access Repository metadata format
+    """
     def __init__(self, imetadata):
         self.imetadata = imetadata
         self.dataset_json = None
