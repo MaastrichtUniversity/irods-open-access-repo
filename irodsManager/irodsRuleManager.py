@@ -2,6 +2,7 @@ import logging
 import base64
 import binascii
 import unicodedata
+
 from irods.rule import Rule
 
 logger = logging.getLogger('iRODS to Dataverse')
@@ -11,11 +12,12 @@ class RuleManager:
     """
            Manager to execute iRods rules
     """
+
     def __init__(self, path, session, collection):
         """
         :param path: collection path, where to apply the rules
         :param session: iRODS connection session
-        :param collection: collection irods data object
+        :param collection: collection irodsManager data object
         """
         split = path.split("/")
         self.projectID = split[3]
@@ -27,10 +29,13 @@ class RuleManager:
     def rule_open(self):
         print("Rule open")
         logger.info("Rule open")
-
-        open_rule = Rule(self.session, "openProjectCollection.r")
-        open_rule.params.update({"*project": "\'" + self.projectID + "\'"})
-        open_rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
+        rule_body = "do_openProjectCollection {" \
+                    "{openProjectCollection('" + self.projectID + "', '" + self.collectionID + "', 'rods', 'own');}" \
+                                                                                               "}"
+        open_rule = Rule(self.session, body=rule_body)
+        # open_rule = Rule(self.session, "openProjectCollection.r")
+        # open_rule.params.update({"*project": "\'" + self.projectID + "\'"})
+        # open_rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
 
         print(open_rule.params)
 
@@ -39,14 +44,16 @@ class RuleManager:
     def rule_close(self):
         print("Rule close")
         logger.info("Rule close")
+        rule_body = "do_closeProjectCollection {" \
+                    "{closeProjectCollection('" + self.projectID + "', '" + self.collectionID + "');}}"
+        close_rule = Rule(self.session, body=rule_body)
+        # open_rule = Rule(self.session, "closeProjectCollection.r")
+        # open_rule.params.update({"*project": "\'" + self.projectID + "\'"})
+        # open_rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
 
-        open_rule = Rule(self.session, "closeProjectCollection.r")
-        open_rule.params.update({"*project": "\'" + self.projectID + "\'"})
-        open_rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
+        print(close_rule.params)
 
-        print(open_rule.params)
-
-        open_rule.execute()
+        close_rule.execute()
 
     def rule_deletion(self, upload_success):
         print("Rule deletion")
@@ -57,10 +64,16 @@ class RuleManager:
             logger.info("--\t\t\t Start deletion")
             for data in self.collection.data_objects:
                 if data.name != "metadata.xml":
-                    rule = Rule(self.session, "deleteDataObject.r")
-                    rule.params.update({"*project":  "\'"+self.projectID+"\'"})
-                    rule.params.update({"*projectCollection": "\'"+self.collectionID+"\'"})
-                    rule.params.update({"*fileName": "\'"+data.name+"\'"})
+                    rule_body = "do_deleteDataObject {" \
+                                "{ msiDataObjUnlink(" \
+                                "'/nlmumc/projects/"+self.projectID+"/"+self.collectionID+"/"+data.name+"'," \
+                                "'forceChksum=', *chkSum);\n" \
+                                "writeLine('stdout', *chkSum);}}"
+                    rule = Rule(self.session, body=rule_body, output="ruleExecOut")
+                    # rule = Rule(self.session, "deleteDataObject.r")
+                    # rule.params.update({"*project": "\'" + self.projectID + "\'"})
+                    # rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
+                    # rule.params.update({"*fileName": "\'" + data.name + "\'"})
                     out = self.parse_rule_output(rule.execute())
                     if out == "0":
                         print("--\t\t\t Delete:\t" + data.name)
@@ -78,11 +91,16 @@ class RuleManager:
     def rule_checksum(self, name):
         print("--\t\t\t Rule checksum")
         logger.info("--\t\t\t Rule checksum")
-
-        rule = Rule(self.session, "checksums.r")
-        rule.params.update({"*project": "\'" + self.projectID + "\'"})
-        rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
-        rule.params.update({"*fileName": "\'" + name + "\'"})
+        rule_body = "do_checkSum {" \
+                    "{ msiDataObjChksum(" \
+                    "'/nlmumc/projects/"+self.projectID+"/"+self.collectionID+"/"+name+"'," \
+                    "'forceChksum=', *chkSum);\n" \
+                    "writeLine('stdout', *chkSum);}}"
+        rule = Rule(self.session, body=rule_body, output="ruleExecOut")
+        # rule = Rule(self.session, "checksums.r")
+        # rule.params.update({"*project": "\'" + self.projectID + "\'"})
+        # rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
+        # rule.params.update({"*fileName": "\'" + name + "\'"})
 
         irods_hash = self.parse_rule_output(rule.execute()).split('sha2:')[1]
         base_hash = base64.b64decode(irods_hash)

@@ -2,8 +2,8 @@ from irods.session import iRODSSession
 import xml.etree.ElementTree as ET
 import logging
 
-from RuleManager import RuleManager
-from irodsMetadata import irodsMetadata
+from irodsManager.irodsRuleManager import RuleManager
+from irodsManager.irodsMetadata import irodsMetadata
 
 logger = logging.getLogger('iRODS to Dataverse')
 
@@ -98,4 +98,4 @@ class irodsClient():
         self.imetadata.articles = self.read_tag_list(root, "article")
 
         self.rulemanager = RuleManager(collection_fullpath, self.session, self.coll)
-        self.rulemanager.rule_open()
+

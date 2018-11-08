@@ -6,4 +6,4 @@ RUN pip install lxml
 RUN pip install requests
 RUN pip install bleach
 RUN pip install pika
-CMD ["python3","/code/ExporterWorker.py"]
+CMD ["python3","/code/exporterWorker.py"]

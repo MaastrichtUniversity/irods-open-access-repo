@@ -23,9 +23,9 @@ class DataverseClient:
     def __init__(self, host, token, alias, irodsclient):
         """
 
-        :param host: String IP of the dataverse's host
+        :param host: String IP of the dataverseManager's host
         :param token: String token credential
-        :param alias: String Alias/ID of the dataverse where to import dataset & files
+        :param alias: String Alias/ID of the dataverseManager where to import dataset & files
         :param irodsclient: irodsClient object - client to user iRODS database
         """
         self.host = host
@@ -143,7 +143,6 @@ class DataverseClient:
         logger.info(upload_success)
         if deletion:
             self.rulemanager.rule_deletion(upload_success)
-
 
     def chunks(self, f, chunksize=io.DEFAULT_BUFFER_SIZE):
         return iter(lambda: f.read(chunksize), b'')

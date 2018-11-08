@@ -22,7 +22,7 @@ class MetadataMapper:
         print("Map metadata")
         logger.info("Map metadata")
 
-        with open('template.json') as f:
+        with open('resources/template.json') as f:
             self.dataset_json = json.load(f)
 
         self.md = self.dataset_json['datasetVersion']
