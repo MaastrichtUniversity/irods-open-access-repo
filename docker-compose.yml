@@ -1,0 +1,15 @@
+version: '2'
+services:
+  irods-exporter-worker:
+    build: ./
+    hostname: irods-exporter-worker
+    networks:
+      - corpus_default
+    volumes:
+      - ./:/opt/app
+    environment:
+      LOG_LEVEL: DEBUG
+      LOGSTASH_TAGS: COLLECTION_WORKER
+networks:
+  corpus_default:
+    external: true

@@ -27,36 +27,22 @@ class RuleManager:
         self.collection = collection
 
     def rule_open(self):
-        print("Rule open")
         logger.info("Rule open")
         rule_body = "do_openProjectCollection {" \
                     "{openProjectCollection('" + self.projectID + "', '" + self.collectionID + "', 'rods', 'own');}" \
                                                                                                "}"
         open_rule = Rule(self.session, body=rule_body)
-        # open_rule = Rule(self.session, "openProjectCollection.r")
-        # open_rule.params.update({"*project": "\'" + self.projectID + "\'"})
-        # open_rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
-
-        print(open_rule.params)
-
         open_rule.execute()
 
     def rule_close(self):
-        print("Rule close")
         logger.info("Rule close")
         rule_body = "do_closeProjectCollection {" \
                     "{closeProjectCollection('" + self.projectID + "', '" + self.collectionID + "');}}"
+
         close_rule = Rule(self.session, body=rule_body)
-        # open_rule = Rule(self.session, "closeProjectCollection.r")
-        # open_rule.params.update({"*project": "\'" + self.projectID + "\'"})
-        # open_rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
-
-        print(close_rule.params)
-
         close_rule.execute()
 
     def rule_deletion(self, upload_success):
-        print("Rule deletion")
         logger.info("Rule deletion")
 
         # Check if all the files have been succesfully uploaded before deletion
@@ -70,26 +56,16 @@ class RuleManager:
                                 "'forceChksum=', *chkSum);\n" \
                                 "writeLine('stdout', *chkSum);}}"
                     rule = Rule(self.session, body=rule_body, output="ruleExecOut")
-                    # rule = Rule(self.session, "deleteDataObject.r")
-                    # rule.params.update({"*project": "\'" + self.projectID + "\'"})
-                    # rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
-                    # rule.params.update({"*fileName": "\'" + data.name + "\'"})
                     out = self.parse_rule_output(rule.execute())
                     if out == "0":
-                        print("--\t\t\t Delete:\t" + data.name)
-                        logger.info("--\t\t\t File:\t" + data.name)
+                        logger.info("--\t\t\t Delete:\t" + data.name)
                     else:
-                        print("**\t\t\t Delete:\t" + data.name)
-                        logger.error("--\t\t\t File:\t" + data.name)
-                        print("**\t\t\t Delete:\t" + out)
                         logger.error("--\t\t\t File:\t" + out)
             logger.info("--\t\t\t End deletion")
         else:
-            print("Deletion skipped. collection.files != uploaded.files")
             logger.info("Deletion skipped. collection.files != uploaded.files")
 
     def rule_checksum(self, name):
-        print("--\t\t\t Rule checksum")
         logger.info("--\t\t\t Rule checksum")
         rule_body = "do_checkSum {" \
                     "{ msiDataObjChksum(" \
@@ -97,10 +73,6 @@ class RuleManager:
                     "'forceChksum=', *chkSum);\n" \
                     "writeLine('stdout', *chkSum);}}"
         rule = Rule(self.session, body=rule_body, output="ruleExecOut")
-        # rule = Rule(self.session, "checksums.r")
-        # rule.params.update({"*project": "\'" + self.projectID + "\'"})
-        # rule.params.update({"*projectCollection": "\'" + self.collectionID + "\'"})
-        # rule.params.update({"*fileName": "\'" + name + "\'"})
 
         irods_hash = self.parse_rule_output(rule.execute()).split('sha2:')[1]
         base_hash = base64.b64decode(irods_hash)

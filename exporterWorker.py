@@ -1,28 +1,35 @@
+#!/usr/bin/env python3
 import sys
-import time
+import signal
 
 import pika
 import json
 
 import logging
-from utils.utils import init_logger
-from irodsManager.irods2Dataverse import exporter
 
-# Credentials
-credentials = pika.PlainCredentials('user', 'password')
+from zenodoManager.irods2Zenodo import ZenodoExporter
+from figshareManager.irods2Figshare import FigshareExporter
+from dataverseManager.irods2Dataverse import DataverseExporter
+from exporterUtils.utils import init_logger
 
 logger = logging.getLogger('iRODS to Dataverse')
 
+exporters = {}
 
-def fake_pid(ch, method, properties, body):
-    print(" [x] Received %r" % body)
+
+def init_exporters():
+    # dv = DataverseExporter()
+    exporters.update({"Figshare": FigshareExporter()})
+    exporters.update({"Zenodo": ZenodoExporter()})
+    exporters.update({"Dataverse": DataverseExporter()})
+
+
+def worker(ch, method, properties, body):
     logger.info(" [x] Received %r" % body)
-    time.sleep(5)
     try:
         data = json.loads(body)
-        path = "/nlmumc/projects/" + data['project'] + "/" + data['collection']
-
-        exporter("DataHub", "resources/config.ini", path, data['delete'], data['restrict'])
+        ex = exporters.get(data['repository'])
+        ex.init_export(data)
 
         ch.basic_publish(
             exchange='datahub.events_tx',
@@ -32,32 +39,38 @@ def fake_pid(ch, method, properties, body):
         ch.basic_ack(delivery_tag=method.delivery_tag)
     except json.decoder.JSONDecodeError:
         logger.error("json.loads" % body)
-
-    print(" [x] Sent projectCollection.exporter.executed")
     logger.info(" [x] Sent projectCollection.exporter.executed")
 
 
 def main():
     init_logger()
-    # connection = pika.BlockingConnection(pika.ConnectionParameters('http://137.120.31.131', 15672, '/', credentials))
+    init_exporters()
     params = pika.URLParameters("amqp://user:password@137.120.31.131:5672/%2f")
     connection = pika.BlockingConnection(params)
     channel = connection.channel()
-    q = channel.queue_declare(queue='repository.Exporter', durable=True)
+    channel.queue_declare(queue='repository.Exporter', durable=True)
     channel.queue_bind(
         exchange='datahub.events_tx',
         queue='repository.Exporter',
         routing_key='projectCollection.exporter.requested'
     )
-    channel.basic_consume(fake_pid, queue='repository.Exporter')
-    print(' [*] Waiting for queue. To exit press CTRL+C')
+    channel.basic_consume(worker, queue='repository.Exporter')
     logger.info(' [*] Waiting for queue. To exit press CTRL+C')
 
     channel.start_consuming()
 
 
+def sigterm_handler():
+    sys.exit(0)
+
+
 if __name__ == "__main__":
+    # Handle the SIGTERM signal from Docker
+    signal.signal(signal.SIGTERM, sigterm_handler)
     try:
         sys.exit(main())
     except KeyboardInterrupt:
         sys.exit(0)
+    finally:
+        # Perform any clean up of connections on closing here
+        logger.info("Exiting")

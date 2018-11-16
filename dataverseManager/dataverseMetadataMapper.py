@@ -19,7 +19,6 @@ class MetadataMapper:
         self.md = None
 
     def read_metadata(self):
-        print("Map metadata")
         logger.info("Map metadata")
 
         with open('resources/template.json') as f:
@@ -27,7 +26,6 @@ class MetadataMapper:
 
         self.md = self.dataset_json['datasetVersion']
 
-        print("--\t" + self.imetadata.pid)
         logger.info("--\t" + self.imetadata.pid)
 
         pid = self.imetadata.pid.split("/")

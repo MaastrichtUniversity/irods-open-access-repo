@@ -13,7 +13,8 @@ class DataverseClient:
     Dataverse client to import datasets and files
     """
 
-    READ_BUFFER_SIZE = 128 * io.DEFAULT_BUFFER_SIZE
+    # READ_BUFFER_SIZE = 128 * io.DEFAULT_BUFFER_SIZE
+    READ_BUFFER_SIZE = 1024 * 1048576
 
     HTTP_STATUS_OK = 200
     HTTP_STATUS_Created = 201
@@ -31,14 +32,16 @@ class DataverseClient:
         self.host = host
         self.alias = alias
         self.token = token
+
+        self.irodsclient = irodsclient
         self.pid = irodsclient.imetadata.pid
         self.collection = irodsclient.coll
         self.session = irodsclient.session
         self.rulemanager = irodsclient.rulemanager
+
         self.dataset_status = None
 
     def check_dataset_exist(self):
-        print("Check if dataset exists")
         logger.info("Check if dataset exists")
 
         url = self.host + "/api/datasets/:persistentId/?persistentId=hdl:" + self.pid
@@ -92,8 +95,14 @@ class DataverseClient:
 
         upload_success = {}
 
+        self.irodsclient.update_metadata_state('exporterState', 'do-export', 'do-export-start')
+        last_export = 'do-export-start'
+
         for data in self.collection.data_objects:
             logger.info("--\t" + data.name)
+
+            self.irodsclient.update_metadata_state('exporterState', last_export, 'do-export-' + data.name)
+            last_export = 'do-export-' + data.name
 
             buff = self.session.data_objects.open(data.path, 'r')
             irods_sha = hashlib.sha256()
@@ -139,6 +148,8 @@ class DataverseClient:
             else:
                 logger.error("SHA-256 checksum failed")
                 logger.error("Skip upload:\t" + data.name)
+
+        self.irodsclient.update_metadata_state('exporterState', last_export, 'do-export')
 
         logger.info(upload_success)
         if deletion:

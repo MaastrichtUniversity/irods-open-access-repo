@@ -23,7 +23,6 @@ class irodsClient():
         self.rulemanager = None
 
     def connect(self, host=None, port=None, user=None, password=None, zone=None):
-        print("Connect to iRODS")
         logger.info("Connect to iRODS")
 
         if host and port and user and password and zone is None:
@@ -71,13 +70,11 @@ class irodsClient():
         return [node_dict]
 
     def read_collection_metadata(self, collection_fullpath):
-        print("Read collection metadata")
         logger.info("Read collection metadata")
         self.coll = self.session.collections.get(collection_fullpath)
         for x in self.coll.metadata.items():
             self.imetadata.__dict__.update({x.name.lower(): x.value})
 
-        print("Parse collection metadata.xml")
         logger.info("Parse collection metadata.xml")
         meta_xml = collection_fullpath + "/metadata.xml"
         buff = self.session.data_objects.open(meta_xml, 'r')
@@ -99,3 +96,15 @@ class irodsClient():
 
         self.rulemanager = RuleManager(collection_fullpath, self.session, self.coll)
 
+    def update_metadata_state(self, key, old_value, new_value):
+        try:
+            self.coll.metadata.remove(key, old_value)
+        except:
+            logger.error(key + ': ' + old_value)
+
+        try:
+            if new_value != '':
+                self.coll.metadata.add(key, new_value)
+        except:
+            logger.error(key + ': ' + new_value)
+        pass
