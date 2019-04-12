@@ -71,7 +71,7 @@ def main(channel, retry_counter=None):
         exit(1)
 
     try:
-        logger.info('Waiting for queue repository.collection-etl')
+        logger.info(' [x] Waiting for queue repository.collection-etl')
         channel.start_consuming()
     except pika.exceptions.ConnectionClosed:
         logger.error("Failed with pika.exceptions.ConnectionClosed: Sleeping for 60 secs before next try. This was try " + str(retry_counter))

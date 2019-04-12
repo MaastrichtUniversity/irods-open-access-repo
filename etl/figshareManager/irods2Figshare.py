@@ -2,17 +2,16 @@ import logging
 import time
 
 from irodsManager.irodsClient import irodsClient
-from zenodoManager.zenodoClient import ZenodoClient
-from zenodoManager.zenodoMetadataMapper import ZenodoMetadataMapper
-from exporterUtils.utils import parse_config
+from figshareManager.figshareClient import FigshareClient
+# from exporterUtils.utils import parse_config
 
 logger = logging.getLogger('iRODS to Dataverse')
 
 
-class ZenodoExporter:
+class FigshareExporter:
 
     def __init__(self):
-        self.repository = "Zenodo"
+        self.repository = "Figshare"
 
     def init_export(self, data):
         path = "/nlmumc/projects/" + data['project'] + "/" + data['collection']
@@ -24,6 +23,7 @@ class ZenodoExporter:
         logger.info("Init")
         config = parse_config(ini)
         irods_config = config[0]
+        logger.info(irods_config)
 
         # iRODS
         logger.info("iRODS")
@@ -34,20 +34,21 @@ class ZenodoExporter:
         iclient.update_metadata_state('exporterState', 'in-queue-for-export', 'prepare-export')
 
         # Metadata
-        logger.info("Metadata")
-        mapper = ZenodoMetadataMapper(iclient.imetadata)
-        md = mapper.read_metadata()
+        # logger.info("Metadata")
+        # logger.info("Metadata")
+        # mapper = ZenodoMetadataMapper(iclient.imetadata)
+        # md = mapper.read_metadata()
 
         iclient.rulemanager.rule_open()
         iclient.update_metadata_state('exporterState', 'prepare-export', 'do-export')
 
-        zn = ZenodoClient(iclient, token)
-        zn.create_deposit(md)
-        zn.import_files()
+        fs = FigshareClient(iclient, token)
+        fs.create_article()
+        fs.import_files()
 
-        url = zn.host + "/deposit/" + str(zn.deposition_id)
-
+        url = "https://figshare.com/account/articles/" + str(fs.article_id)
         iclient.update_metadata_state('externalLink', url, url)
+
         iclient.update_metadata_state('exporterState', 'do-export', 'exported')
         time.sleep(15)
         iclient.update_metadata_state('exporterState', 'exported', '')
@@ -58,10 +59,9 @@ class ZenodoExporter:
 
 def main():
     path = "/nlmumc/projects/P000000003/C000000001"
-    # host = "https://sandbox.zenodo.org"
-    zn = ZenodoExporter()
-    token = "boVrUQbGqxiMNCw8Srz6kNEE5cxkHYfQGxGwidxviwbC1OmCi5ZQwCVHCcn4"
-    zn.do_export("/opt/app/resources/config.ini", path, token)
+    # self.TOKEN = '12e89a66fec6b2553a2ee297d69348dac1bfe97dd8371564fc56629cae32c14256a31382e898de8f5079a9a9eb68e8b61d1dfad960c509b6a5f8dfa6bce7c8f0'
+    fs = FigshareExporter()
+    fs.do_export("/opt/app/resources/config.ini", path)
 
 
 if __name__ == "__main__":

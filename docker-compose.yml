@@ -1,14 +1,14 @@
 version: '2'
 services:
   irods-exporter-worker:
-    build: ./
+    build: docker/
     hostname: irods-exporter-worker
     networks:
       - default
       - corpus_default
       - common_default
     volumes:
-      - ./:/opt/app
+      - ./etl:/opt/app
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: user
