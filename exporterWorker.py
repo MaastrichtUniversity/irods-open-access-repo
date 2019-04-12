@@ -1,63 +1,86 @@
 #!/usr/bin/env python3
+import os
 import sys
 import signal
+import time
+import logging
 
 import pika
 import json
 
-import logging
-
 from zenodoManager.irods2Zenodo import ZenodoExporter
 from figshareManager.irods2Figshare import FigshareExporter
 from dataverseManager.irods2Dataverse import DataverseExporter
-from exporterUtils.utils import init_logger
+from irodsManager.irodsClient import irodsClient
 
-logger = logging.getLogger('iRODS to Dataverse')
-
-exporters = {}
-
-
-def init_exporters():
-    # dv = DataverseExporter()
-    exporters.update({"Figshare": FigshareExporter()})
-    exporters.update({"Zenodo": ZenodoExporter()})
-    exporters.update({"Dataverse": DataverseExporter()})
+log_level = os.environ['LOG_LEVEL']
+logging.basicConfig(level=logging.getLevelName(log_level), format='%(asctime)s %(levelname)s %(message)s')
+logger = logging.getLogger('root')
 
 
-def worker(ch, method, properties, body):
-    logger.info(" [x] Received %r" % body)
+def irods_connect(path):
+    # iRODS
+    logger.info("iRODS")
+    irods_client = irodsClient(host=os.environ['IRODS_HOST'], port=1247, user=os.environ['IRODS_USER'],
+                               password=os.environ['IRODS_PASS'], zone='nlmumc')
+    irods_client.connect()
+    irods_client.read_collection_metadata(path)
+    irods_client.rulemanager.rule_open()
+    irods_client.update_metadata_state('exporterState', 'in-queue-for-export', 'prepare-export')
+
+    return irods_client
+
+
+def collection_etl(ch, method, properties, body):
     try:
         data = json.loads(body)
-        ex = exporters.get(data['repository'])
-        ex.init_export(data)
-
-        ch.basic_publish(
-            exchange='datahub.events_tx',
-            routing_key='projectCollection.exporter.executed',
-            body=json.dumps(data)
-        )
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        logger.info(f" [x] Received %r" % data)
     except json.decoder.JSONDecodeError:
-        logger.error("json.loads" % body)
-    logger.info(" [x] Sent projectCollection.exporter.executed")
+        logger.error("json.loads %r" % body)
+    else:
+        path = "/nlmumc/projects/" + data['project'] + "/" + data['collection']
+        irods_client = irods_connect(path)
+        logger.info(f" [x] Create {data['repository']} exporter worker")
+        class_name = data['repository']+'Exporter'
+        exporter = globals()[class_name]()
+        exporter.init_export(irods_client, data)
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+        logger.info(" [x] Sent projectCollection.exporter.executed")
+
+        return True
 
 
-def main():
-    init_logger()
-    init_exporters()
-    params = pika.URLParameters("amqp://user:password@137.120.31.131:5672/%2f")
-    connection = pika.BlockingConnection(params)
-    channel = connection.channel()
-    channel.queue_declare(queue='repository.Exporter', durable=True)
+def main(channel, retry_counter=None):
+    channel.queue_declare(queue='repository.collection-etl', durable=True)
+
     channel.queue_bind(
         exchange='datahub.events_tx',
-        queue='repository.Exporter',
+        queue='repository.collection-etl',
         routing_key='projectCollection.exporter.requested'
     )
-    channel.basic_consume(worker, queue='repository.Exporter')
-    logger.info(' [*] Waiting for queue. To exit press CTRL+C')
 
-    channel.start_consuming()
+    channel.basic_consume(
+        collection_etl,
+        queue='repository.collection-etl',
+    )
+
+    # When connection closed, try again 10 time otherwise quit.
+    if retry_counter < 10:
+        retry_counter += 1
+    else:
+        logger.error("Retry connection failed for 10 minutes. Exiting!")
+        exit(1)
+
+    try:
+        logger.info('Waiting for queue repository.collection-etl')
+        channel.start_consuming()
+    except pika.exceptions.ConnectionClosed:
+        logger.error("Failed with pika.exceptions.ConnectionClosed: Sleeping for 60 secs before next try. This was try " + str(retry_counter))
+        time.sleep(60)
+        new_connection = pika.BlockingConnection(
+            pika.ConnectionParameters(os.environ['RABBITMQ_HOST'], 5672, '/', credentials))
+        new_ch = new_connection.channel()
+        main(new_ch, retry_counter)
 
 
 def sigterm_handler():
@@ -65,12 +88,19 @@ def sigterm_handler():
 
 
 if __name__ == "__main__":
-    # Handle the SIGTERM signal from Docker
     signal.signal(signal.SIGTERM, sigterm_handler)
+    credentials = pika.PlainCredentials(os.environ['RABBITMQ_USER'], os.environ['RABBITMQ_PASS'])
+    parameters = pika.ConnectionParameters(host=os.environ['RABBITMQ_HOST'],
+                                           port=5672,
+                                           virtual_host='/',
+                                           credentials=credentials,
+                                           heartbeat_interval=600,
+                                           blocked_connection_timeout=300)
+    connection = pika.BlockingConnection(parameters)
+    channel = connection.channel()
+
     try:
-        sys.exit(main())
-    except KeyboardInterrupt:
-        sys.exit(0)
+        sys.exit(main(channel, retry_counter=0))
     finally:
-        # Perform any clean up of connections on closing here
+        connection.close()
         logger.info("Exiting")

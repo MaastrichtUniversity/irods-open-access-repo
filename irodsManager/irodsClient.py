@@ -10,12 +10,12 @@ logger = logging.getLogger('iRODS to Dataverse')
 
 class irodsClient():
 
-    def __init__(self, config):
-        self.host = config.get("host")
-        self.port = config.get("port")
-        self.user = config.get("user")
-        self.password = config.get("password")
-        self.zone = config.get("zone")
+    def __init__(self, host=None, port=None, user=None, password=None, zone=None):
+        self.host = host
+        self.port = port
+        self.user = user
+        self.password = password
+        self.zone = zone
 
         self.session = None
         self.coll = None
