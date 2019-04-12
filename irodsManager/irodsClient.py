@@ -1,4 +1,5 @@
 from irods.session import iRODSSession
+from irods.exception import iRODSException
 import xml.etree.ElementTree as ET
 import logging
 
@@ -23,7 +24,7 @@ class irodsClient():
         self.rulemanager = None
 
     def connect(self, host=None, port=None, user=None, password=None, zone=None):
-        logger.info("Connect to iRODS")
+        logger.info("--\t Connect to iRODS")
 
         if host and port and user and password and zone is None:
             self.host = host
@@ -70,12 +71,12 @@ class irodsClient():
         return [node_dict]
 
     def read_collection_metadata(self, collection_fullpath):
-        logger.info("Read collection metadata")
+        logger.info("--\t Read collection metadata")
         self.coll = self.session.collections.get(collection_fullpath)
         for x in self.coll.metadata.items():
             self.imetadata.__dict__.update({x.name.lower(): x.value})
 
-        logger.info("Parse collection metadata.xml")
+        logger.info("--\t Parse collection metadata.xml")
         meta_xml = collection_fullpath + "/metadata.xml"
         buff = self.session.data_objects.open(meta_xml, 'r')
         root = ET.fromstring(buff.read())
@@ -96,15 +97,31 @@ class irodsClient():
 
         self.rulemanager = RuleManager(collection_fullpath, self.session, self.coll)
 
+        self.update_metadata_state('exporterState', 'in-queue-for-export', 'prepare-export')
+
     def update_metadata_state(self, key, old_value, new_value):
         try:
             self.coll.metadata.remove(key, old_value)
-        except:
-            logger.error(key + ': ' + old_value)
+        except iRODSException as error:
+            logger.error(f"{key} : {old_value}  {error}")
 
         try:
             if new_value != '':
                 self.coll.metadata.add(key, new_value)
-        except:
-            logger.error(key + ': ' + new_value)
-        pass
+        except iRODSException as error:
+            logger.error(f"{key} : {new_value}  {error}")
+
+    def remove_metadata_state(self, key, value):
+        try:
+            if value:
+                self.coll.metadata.remove(key, value)
+        except iRODSException as error:
+            logger.error(f"{key} : {value}  {error}")
+
+    def add_metadata_state(self, key, value):
+        try:
+            if value:
+                self.coll.metadata.add(key, value)
+        except iRODSException as error:
+            logger.error(f"{key} : {value}  {error}")
+

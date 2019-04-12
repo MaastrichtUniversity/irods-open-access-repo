@@ -17,8 +17,6 @@ TODO
 
 * logger => tail / elk
 
-* demo.Dataverse.nl test / ask more access
-
 * README update
 
 """
@@ -27,30 +25,45 @@ TODO
 class DataverseExporter:
     def __init__(self):
         self.repository = "Dataverse"
+        self.irods_client = None
+        self.metadata_mapper = None
+        self.exporter_client = None
 
     def init_export(self, irods_client, data):
-        self.do_export("7151", irods_client, data['delete'], data['restrict'])
+        self.irods_client = irods_client
+        try:
+            self.do_export("7151", data['delete'], data['restrict'], data['dataexport'], data['restrict_list'])
+        finally:
+            # self.session_cleanup()
+            pass
 
-    def do_export(self, alias, irods_client, delete=False, restrict=False):
+    def do_export(self, alias, delete=False, restrict=False, data_export=False, restrict_list=""):
         # Metadata
         logger.info("Metadata")
-        mapper = MetadataMapper(irods_client.imetadata)
-        md = mapper.read_metadata()
-
-        irods_client.update_metadata_state('exporterState', 'prepare-export', 'do-export')
+        self.metadata_mapper = MetadataMapper(self.irods_client.imetadata)
+        md = self.metadata_mapper.read_metadata()
 
         # Dataverse
         logger.info("Dataverse")
-        dv = DataverseClient(os.environ['DATAVERSE_HOST'], os.environ['DATAVERSE_TOKEN'], alias, irods_client)
-        dv.import_dataset(md)
-        dv.import_files(delete, restrict)
+        self.exporter_client = DataverseClient(os.environ['DATAVERSE_HOST'], os.environ['DATAVERSE_TOKEN'], alias, self.irods_client)
+        self.exporter_client.create_dataset(md, data_export)
+        if data_export:
+            self.exporter_client.import_files(delete, restrict, restrict_list)
 
-        url = os.environ['DATAVERSE_HOST'] + "/dataset.xhtml?persistentId=hdl:" + irods_client.imetadata.pid + "&version=DRAFT"
-        irods_client.update_metadata_state('externalLink', url, url)
+        # Cleanup
+        self.irods_client.rulemanager.rule_close()
+        self.irods_client.session.cleanup()
 
-        irods_client.update_metadata_state('exporterState', 'do-export', 'exported')
-        time.sleep(15)
-        irods_client.update_metadata_state('exporterState', 'exported', '')
+    def session_cleanup(self):
+        logger.error("An error occurred during the upload")
+        logger.error("Clean up exporterState AVU")
 
-        irods_client.rulemanager.rule_close()
-        logger.info("Upload Done")
+        self.irods_client.remove_metadata_state('exporterState', 'in-queue-for-export')
+        self.irods_client.remove_metadata_state('exporterState', 'prepare-export')
+        self.irods_client.remove_metadata_state('exporterState', 'do-export')
+        self.irods_client.remove_metadata_state('exporterState', self.exporter_client.last_export)
+        logger.error("exporterState: " + self.exporter_client.last_export)
+
+        logger.error("Call rule closeProjectCollection")
+        self.irods_client.rulemanager.rule_close()
+

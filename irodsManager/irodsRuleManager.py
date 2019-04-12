@@ -67,6 +67,7 @@ class RuleManager:
 
     def rule_checksum(self, name):
         logger.info("--\t\t\t Rule checksum")
+        self.session.connection_timeout = 1200
         rule_body = "do_checkSum {" \
                     "{ msiDataObjChksum(" \
                     "'/nlmumc/projects/"+self.projectID+"/"+self.collectionID+"/"+name+"'," \
@@ -77,8 +78,7 @@ class RuleManager:
         irods_hash = self.parse_rule_output(rule.execute()).split('sha2:')[1]
         base_hash = base64.b64decode(irods_hash)
         irods_hash_decode = binascii.hexlify(base_hash).decode("utf-8")
-
-        self.session.cleanup()
+        self.session.connection_timeout = 120
 
         return irods_hash_decode
 

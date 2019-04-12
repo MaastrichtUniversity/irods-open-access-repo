@@ -26,7 +26,6 @@ def irods_connect(path):
     irods_client.connect()
     irods_client.read_collection_metadata(path)
     irods_client.rulemanager.rule_open()
-    irods_client.update_metadata_state('exporterState', 'in-queue-for-export', 'prepare-export')
 
     return irods_client
 

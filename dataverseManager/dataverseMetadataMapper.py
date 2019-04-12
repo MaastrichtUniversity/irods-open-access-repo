@@ -19,14 +19,12 @@ class MetadataMapper:
         self.md = None
 
     def read_metadata(self):
-        logger.info("Map metadata")
+        logger.info("--\t Map metadata")
 
         with open('resources/template.json') as f:
             self.dataset_json = json.load(f)
 
         self.md = self.dataset_json['datasetVersion']
-
-        logger.info("--\t" + self.imetadata.pid)
 
         pid = self.imetadata.pid.split("/")
         self.update_pid(self.md, pid[0], pid[1])
@@ -197,7 +195,7 @@ class MetadataMapper:
 
     def add_date(self, date, up=True):
         new = {
-            "typeName": "productionDate",
+            "typeName": "dateOfDeposit",
             "multiple": False,
             "value": date,
             "typeClass": "primitive"
