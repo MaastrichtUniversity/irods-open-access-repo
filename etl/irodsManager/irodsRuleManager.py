@@ -45,7 +45,7 @@ class RuleManager:
     def rule_deletion(self, upload_success):
         logger.info("Rule deletion")
 
-        # Check if all the files have been succesfully uploaded before deletion
+        # Check if all the files have been successfully uploaded before deletion
         if len(upload_success) == len(self.collection.data_objects):
             logger.info("--\t\t\t Start deletion")
             for data in self.collection.data_objects:
@@ -65,12 +65,12 @@ class RuleManager:
         else:
             logger.info("Deletion skipped. collection.files != uploaded.files")
 
-    def rule_checksum(self, name):
+    def rule_checksum(self, path):
         logger.info("--\t\t\t Rule checksum")
         self.session.connection_timeout = 1200
         rule_body = "do_checkSum {" \
                     "{ msiDataObjChksum(" \
-                    "'/nlmumc/projects/"+self.projectID+"/"+self.collectionID+"/"+name+"'," \
+                    "'"+path+"'," \
                     "'forceChksum=', *chkSum);\n" \
                     "writeLine('stdout', *chkSum);}}"
         rule = Rule(self.session, body=rule_body, output="ruleExecOut")

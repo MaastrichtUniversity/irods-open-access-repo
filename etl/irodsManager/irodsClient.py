@@ -42,7 +42,7 @@ class irodsClient():
     def read_tag(self, root, tag):
         if root.find(tag).text is not None:
             tag_id = root.find(tag).get("id").split(":", 1)
-            return {"vocabulary": tag_id[0], "uri": tag_id[1], "name": root.find(tag).text}
+            return {"vocabulary": tag_id[0], "uri": tag_id[1].strip("class:"), "name": root.find(tag).text}
         else:
             return []
 
@@ -122,6 +122,13 @@ class irodsClient():
         try:
             if value:
                 self.coll.metadata.add(key, value)
+        except iRODSException as error:
+            logger.error(f"{key} : {value}  {error}")
+
+    def add_metadata_state(self, key, value, unit):
+        try:
+            if value:
+                self.coll.metadata.add(key, value, unit)
         except iRODSException as error:
             logger.error(f"{key} : {value}  {error}")
 

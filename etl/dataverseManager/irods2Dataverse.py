@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 
 from dataverseManager.dataverseClient import DataverseClient
 from dataverseManager.dataverseMetadataMapper import MetadataMapper
@@ -10,15 +9,8 @@ logger = logging.getLogger('iRODS to Dataverse')
 """
 TODO
 * Parallel upload
-
-* Archive  => uncompressed
-
 * Error handle
-
-* logger => tail / elk
-
 * README update
-
 """
 
 
