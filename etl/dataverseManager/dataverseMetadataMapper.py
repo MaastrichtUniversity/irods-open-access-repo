@@ -11,7 +11,7 @@ self.protocol = None
 
 class MetadataMapper:
     """
-        Map iRODS metadata to the Open Access Repository metadata format
+    Map iRODS metadata to the Open Access Repository metadata format
     """
     def __init__(self, imetadata):
         self.imetadata = imetadata
@@ -90,11 +90,12 @@ class MetadataMapper:
         self.add_publications(publications)
 
         self.dataset_json['datasetVersion'] = self.md
-        # logger.info(json.dumps(self.dataset_json, indent=4))
+        logger.debug(json.dumps(self.dataset_json, indent=4))
 
         return self.dataset_json
 
-    def update_pid(self, md, authority, identifier, hdl="hdl"):
+    @staticmethod
+    def update_pid(md, authority, identifier, hdl="hdl"):
         md["protocol"] = hdl
         md["authority"] = authority
         md["identifier"] = identifier
@@ -103,7 +104,7 @@ class MetadataMapper:
         fields = self.md["metadataBlocks"]["citation"]["fields"]
         fields.append(new)
 
-    def add_author(self, author, affiliation, up=True):
+    def add_author(self, author, affiliation="", up=True):
         new = {
             "typeName": "author",
             "multiple": True,
@@ -115,26 +116,6 @@ class MetadataMapper:
                         "value": affiliation,
                         "typeClass": "primitive"
                     },
-                    "authorName": {
-                        "typeName": "authorName",
-                        "multiple": False,
-                        "value": author,
-                        "typeClass": "primitive"
-                    }
-                }
-            ],
-            "typeClass": "compound"
-        }
-        if up:
-            self.update_fields(new)
-        return new
-
-    def add_author(self, author, up=True):
-        new = {
-            "typeName": "author",
-            "multiple": True,
-            "value": [
-                {
                     "authorName": {
                         "typeName": "authorName",
                         "multiple": False,
@@ -215,7 +196,8 @@ class MetadataMapper:
             self.update_fields(new)
         return new
 
-    def add_contact_email(self, email):
+    @staticmethod
+    def add_contact_email(email):
         new = {
             "datasetContactEmail": {
                 "typeName": "datasetContactEmail",
@@ -226,7 +208,8 @@ class MetadataMapper:
         }
         return new
 
-    def add_contact(self, name, email, affiliation):
+    @staticmethod
+    def add_contact(name, email, affiliation):
         new = {
             "datasetContactAffiliation": {
                 "multiple": False,
@@ -260,7 +243,8 @@ class MetadataMapper:
             self.update_fields(new)
         return new
 
-    def add_keyword(self, value, vocabulary, uri):
+    @staticmethod
+    def add_keyword(value, vocabulary, uri):
         new = {
             "keywordValue": {
                 "multiple": False,
@@ -294,7 +278,8 @@ class MetadataMapper:
             self.update_fields(new)
         return new
 
-    def add_publication(self, value, doi, url):
+    @staticmethod
+    def add_publication(value, doi, url):
         new = {
             "publicationIDNumber": {
                 "multiple": False,

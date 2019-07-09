@@ -10,16 +10,16 @@ logger = logging.getLogger('iRODS to Dataverse')
 
 class RuleManager:
     """
-           Manager to execute iRods rules
+    Manager to execute iRods rules
     """
 
-    def __init__(self, path, session, collection):
+    def __init__(self, session, collection):
         """
         :param path: collection path, where to apply the rules
         :param session: iRODS connection session
         :param collection: collection irodsManager data object
         """
-        split = path.split("/")
+        split = collection.path.split("/")
         self.projectID = split[3]
         self.collectionID = split[4]
 
@@ -65,6 +65,7 @@ class RuleManager:
         else:
             logger.info("Deletion skipped. collection.files != uploaded.files")
 
+    # TODO : Bulk chksums
     def rule_checksum(self, path):
         logger.info("--\t\t\t Rule checksum")
         self.session.connection_timeout = 1200

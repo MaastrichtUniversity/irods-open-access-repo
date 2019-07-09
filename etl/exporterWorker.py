@@ -18,27 +18,17 @@ logging.basicConfig(level=logging.getLevelName(log_level), format='%(asctime)s %
 logger = logging.getLogger('root')
 
 
-def irods_connect(path):
-    # iRODS
-    logger.info("iRODS")
-    irods_client = irodsClient(host=os.environ['IRODS_HOST'], port=1247, user=os.environ['IRODS_USER'],
-                               password=os.environ['IRODS_PASS'], zone='nlmumc')
-    irods_client.connect()
-    irods_client.read_collection_metadata(path)
-    irods_client.rulemanager.rule_open()
-
-    return irods_client
-
-
 def collection_etl(ch, method, properties, body):
     try:
-        data = json.loads(body)
+        data = json.loads(body.decode("utf-8"))
         logger.info(f" [x] Received %r" % data)
     except json.decoder.JSONDecodeError:
-        logger.error("json.loads %r" % body)
+        logger.error("json.loads %r" % body.decode("utf-8").replace("\"", "", 3))
     else:
         path = "/nlmumc/projects/" + data['project'] + "/" + data['collection']
-        irods_client = irods_connect(path)
+        irods_client = irodsClient(host=os.environ['IRODS_HOST'], port=1247, user=os.environ['IRODS_USER'],
+                                   password=os.environ['IRODS_PASS'], zone='nlmumc')
+        irods_client.prepare(path)
         logger.info(f" [x] Create {data['repository']} exporter worker")
         class_name = data['repository']+'Exporter'
         exporter = globals()[class_name]()

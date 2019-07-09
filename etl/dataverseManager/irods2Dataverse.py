@@ -1,17 +1,11 @@
 import logging
 import os
+import sys
 
 from dataverseManager.dataverseClient import DataverseClient
 from dataverseManager.dataverseMetadataMapper import MetadataMapper
 
 logger = logging.getLogger('iRODS to Dataverse')
-
-"""
-TODO
-* Parallel upload
-* Error handle
-* README update
-"""
 
 
 class DataverseExporter:
@@ -25,9 +19,10 @@ class DataverseExporter:
         self.irods_client = irods_client
         try:
             self.do_export("7151", data['delete'], data['restrict'], data['dataexport'], data['restrict_list'])
-        finally:
-            # self.session_cleanup()
-            pass
+        except:
+            print("Unexpected error:", sys.exc_info()[0])
+            self.session_cleanup()
+            raise
 
     def do_export(self, alias, delete=False, restrict=False, data_export=False, restrict_list=""):
         # Metadata
