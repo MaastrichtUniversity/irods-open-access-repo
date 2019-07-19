@@ -4,7 +4,7 @@ import logging
 import requests
 import time
 
-from irodsManager.irodsUtils import get_zip_generator, MultiPurposeReader
+from irodsManager.irodsUtils import get_zip_generator, zip_generator_faker, MultiPurposeReader
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from http import HTTPStatus
 
@@ -99,15 +99,24 @@ class DataverseClient:
         if self.deletion:
             self.rulemanager.rule_deletion(self.upload_success)
 
+    from memory_profiler import profile
+    @profile
     def import_bundle_collection(self):
         flag = "false"
         if self.restrict:
             flag = "true"
 
         irods_md5 = hashlib.md5()
+        size_bundle = zip_generator_faker(self.collection, self.session,
+                                          self.upload_success, self.rulemanager,
+                                          irods_md5)
+        md5_hexdigest = irods_md5.hexdigest()
+        logger.info(f"{'--':<30}buffer faker MD5: {md5_hexdigest}")
+
+        irods_md5 = hashlib.md5()
         bundle_iterator = get_zip_generator(self.collection, self.session,
                                             self.upload_success, self.rulemanager,
-                                            irods_md5)
+                                            irods_md5, size_bundle)
 
         json_data = {"description": "My API test description.",
                      "categories": ["Data"],

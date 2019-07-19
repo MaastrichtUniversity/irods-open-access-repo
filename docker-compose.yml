@@ -16,8 +16,11 @@ services:
       IRODS_HOST: irods.dev7.rit.unimaas.nl
       IRODS_USER: rods
       IRODS_PASS: irods
-      DATAVERSE_HOST: https://demo.dataverse.nl
+      DATAVERSE_HOST: https://act.dataverse.nl
       DATAVERSE_TOKEN: 4b648c90-01af-424e-a42f-7187b3611268
+      EASY_HOST : https://act.easy.dans.knaw.nl/
+      EASY_USER : jmelius
+      EASY_PWD : foobar
       LOG_LEVEL: INFO
       LOGSTASH_TAGS: COLLECTION_WORKER
 networks:
