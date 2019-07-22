@@ -75,14 +75,13 @@ class EasyClient:
         resp = requests.post(
             "https://act.easy.dans.knaw.nl/sword2/collection/1",
             data=bundle_iterator,
-            auth=('jmelius', 'Qszxaw369*'),
+            auth=(self.host, self.pwd),
             headers={
                 # 'Content-Type': multipart_encoder.content_type,
                 "Content-Disposition": "filename=debug_archive00.zip",
                 "Content-MD5": f"{md5_hexdigest}",
                 "In-Progress": "false",
                 "Packaging": "http://purl.org/net/sword/package/SimpleZip",
-                # "Content-Type": "application/zip"
                 "Content-Type": "application/octet-stream"
             },
         )
@@ -93,40 +92,6 @@ class EasyClient:
             print(f"{'--':<30}{resp.content.decode('utf-8')}")
         else:
             print(f"{'--':<30}{resp.content.decode('utf-8')}")
-
-        # path = "/nlmumc/projects/P000000005/C000000001"
-        # collection = session.collections.get(path)
-        # upload_success = {}
-        # data, size = collection_zip_preparation(collection, rulemanager, upload_success)
-        # stream = UnseekableStream()
-        # zip_iterator = zip_collection(data, stream, session, upload_success, imetadata)
-        # bar = tqdm(total=size_bundle, unit="bytes", smoothing=0.1, unit_scale=True)
-        # bundle_md5 = hashlib.md5()
-        # bundle_iterator = IteratorAsBinaryFile(size_bundle, archive_generator2(zip_iterator, stream, bar), bundle_md5)
-        #
-        # print(f"{'--':<30}Post bundle")
-        #
-        # resp = requests.post(
-        #     "https://act.easy.dans.knaw.nl/sword2/collection/1",
-        #     data=bundle_iterator,
-        #     auth=('jmelius', 'Qszxaw369*'),
-        #     headers={
-        #              # 'Content-Type': multipart_encoder.content_type,
-        #              "Content-Disposition": "filename=debug_archive00.zip",
-        #              "Content-MD5": f"{md5_hexdigest}",
-        #              "In-Progress": "false",
-        #              "Packaging": "http://purl.org/net/sword/package/SimpleZip",
-        #              # "Content-Type": "application/zip"
-        #              "Content-Type": "application/octet-stream"
-        #              },
-        # )
-        # bundle_md5_hexdigest = bundle_md5.hexdigest()
-        # print(f"{'--':<30}request buffer MD5: {bundle_md5_hexdigest}")
-        # print(f"{'--':<30}status_code: {resp.status_code}")
-        # if resp.status_code == 201:
-        #     print(f"{'--':<30}{resp.content.decode('utf-8')}")
-        # else:
-        #     print(f"{'--':<30}{resp.content.decode('utf-8')}")
 
     def final_report(self):
         logger.info("Report final progress")
