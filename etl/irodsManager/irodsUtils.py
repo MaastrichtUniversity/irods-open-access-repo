@@ -18,6 +18,7 @@ BLOCK_SIZE = 1024 * io.DEFAULT_BUFFER_SIZE
 date_iso = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 date = datetime.datetime.now().date()
 
+
 class MultiPurposeReader:
     """
     Custom multi-part reader.

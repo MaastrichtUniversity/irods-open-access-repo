@@ -99,8 +99,8 @@ class DataverseClient:
         if self.deletion:
             self.rulemanager.rule_deletion(self.upload_success)
 
-    from memory_profiler import profile
-    @profile
+    # from memory_profiler import profile
+    # @profile
     def import_bundle_collection(self):
         flag = "false"
         if self.restrict:

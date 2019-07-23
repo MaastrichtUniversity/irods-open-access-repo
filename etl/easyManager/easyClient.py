@@ -7,20 +7,21 @@ import time
 from irodsManager.irodsUtils import get_bag_generator, bag_generator_faker
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from http import HTTPStatus
+from xml.etree import ElementTree
 
 logger = logging.getLogger('iRODS to Dataverse')
 
 
 class EasyClient:
     """
-    Dataverse client to import datasets and files
+    Easy client to import bagged collection
     """
 
     def __init__(self, host, user, pwd, irodsclient):
         """
-        :param host: String IP of the dataverseManager's host
-        :param token: String token credential
-        :param alias: String Alias/ID of the dataverseManager where to import dataset & files
+        :param host: String IP of the EASY's host
+        :param user: String user name
+        :param pwd: String user password
         :param irodsclient: irodsClient object - client to iRODS database user
         """
         self.host = host
@@ -47,15 +48,14 @@ class EasyClient:
 
         self.zip_name = "debug_archive.zip"
 
-    from memory_profiler import profile
-    @profile
+    # from memory_profiler import profile
+    # @profile
     def post_it(self):
-
-        self.irods_client.update_metadata_state('exporterState', 'prepare-export', 'do-export')
         collection = self.collection
         imetadata = self.irods_client.imetadata
         rulemanager = self.rulemanager
 
+        self.irods_client.update_metadata_state('exporterState', 'prepare-export', 'prepare-bag')
         upload_success = {}
         irods_md5 = hashlib.md5()
         size_bundle = bag_generator_faker(collection, self.session, upload_success,
@@ -65,19 +65,21 @@ class EasyClient:
         md5_hexdigest = irods_md5.hexdigest()
         print(f"{'--':<30}irods buffer MD5: {md5_hexdigest}")
 
+        self.irods_client.update_metadata_state('exporterState', 'prepare-bag', 'zip-bag')
+
         upload_success = {}
         bundle_md5 = hashlib.md5()
         bundle_iterator = get_bag_generator(collection, self.session, upload_success,
                                             rulemanager, bundle_md5, imetadata, size_bundle)
 
         print(f"{'--':<30}Post bundle")
+        self.irods_client.update_metadata_state('exporterState', 'zip-bag', 'upload-bag')
 
         resp = requests.post(
-            "https://act.easy.dans.knaw.nl/sword2/collection/1",
+            self.dataset_deposit_url,
             data=bundle_iterator,
-            auth=(self.host, self.pwd),
+            auth=(self.user, self.pwd),
             headers={
-                # 'Content-Type': multipart_encoder.content_type,
                 "Content-Disposition": "filename=debug_archive00.zip",
                 "Content-MD5": f"{md5_hexdigest}",
                 "In-Progress": "false",
@@ -89,14 +91,63 @@ class EasyClient:
         print(f"{'--':<30}request buffer MD5: {bundle_md5_hexdigest}")
         print(f"{'--':<30}status_code: {resp.status_code}")
         if resp.status_code == 201:
-            print(f"{'--':<30}{resp.content.decode('utf-8')}")
+            logger.debug(f"{'--':<30}{resp.content.decode('utf-8')}")
+            self.check_status(resp.content.decode('utf-8'))
         else:
-            print(f"{'--':<30}{resp.content.decode('utf-8')}")
+            logger.error(f"{'--':<30}{resp.content.decode('utf-8')}")
+            raise
+
+    def check_status(self, content):
+        print(f"{'--':<30}Check deposit status")
+        ElementTree.register_namespace("atom", "http://www.w3.org/2005/Atom")
+        ElementTree.register_namespace("terms", "http://purl.org/net/sword/terms/")
+
+        root = ElementTree.fromstring(content)
+        href = root.find("./{http://www.w3.org/2005/Atom}link/[@rel='http://purl.org/net/sword/terms/statement']").get(
+            'href')
+
+        previous_term = "UPLOADED"
+        self.irods_client.update_metadata_state('exporterState', 'upload-bag', previous_term)
+        while True:
+            resp = requests.get(href, auth=(self.user, self.pwd))
+
+            if resp.status_code != 200:
+                content = resp.content.decode("utf-8")
+                print(resp.status_code)
+                print(content)
+                break
+
+            content = resp.content.decode("utf-8")
+            root = ElementTree.fromstring(content)
+            category = root.find("./{http://www.w3.org/2005/Atom}category")
+            term_refreshed = category.get('term')
+            if term_refreshed == "INVALID" or term_refreshed == "REJECTED" or term_refreshed == "FAILED":
+                print(term_refreshed)
+                print(category.text)
+                if previous_term != term_refreshed:
+                    logger.info(f"{'--':<30}Update state {term_refreshed}")
+                    self.irods_client.update_metadata_state('exporterState', previous_term, term_refreshed)
+                break
+            elif term_refreshed == "ARCHIVED":
+                print(term_refreshed)
+                print(category.text)
+                if previous_term != term_refreshed:
+                    logger.info(f"{'--':<30}Update state {term_refreshed}")
+                    self.irods_client.update_metadata_state('exporterState', previous_term, term_refreshed)
+                break
+            else:
+                print(term_refreshed)
+                print(category.text)
+                if previous_term != term_refreshed:
+                    logger.info(f"{'--':<30}Update state {term_refreshed}")
+                    self.irods_client.update_metadata_state('exporterState', previous_term, term_refreshed)
+                previous_term = term_refreshed
+                time.sleep(15)
 
     def final_report(self):
         logger.info("Report final progress")
         # self.irods_client.add_metadata_state('externalPID', self.dataset_pid, "Easy")
-        self.irods_client.update_metadata_state('exporterState', 'do-export', 'exported')
+        self.irods_client.update_metadata_state('exporterState', 'ARCHIVED', 'exported')
         time.sleep(5)
         self.irods_client.remove_metadata_state('exporterState', 'exported')
         logger.info("Upload Done")
