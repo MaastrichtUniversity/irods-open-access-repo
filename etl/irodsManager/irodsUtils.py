@@ -18,6 +18,10 @@ BLOCK_SIZE = 1024 * io.DEFAULT_BUFFER_SIZE
 date_iso = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
 date = datetime.datetime.now().date()
 
+debug = False
+if logging.getLogger().isEnabledFor(logging.DEBUG):
+    debug = True
+    
 
 class MultiPurposeReader:
     """
@@ -148,23 +152,24 @@ def archive_generator_faker(func, stream, bar, irods_md5):
 
     try:
         size = 0
-        # if logging.getLogger().isEnabledFor(logging.DEBUG):
-        with open("debug_archive0.zip", 'wb') as out_fp:
+        if debug:
+            with open("debug_archive0.zip", 'wb') as out_fp:
+                for i in func:
+                    s = stream.get()
+                    if len(s) > 0:
+                        bar.update(len(s))
+                        out_fp.write(s)
+                        out_fp.flush()
+                        irods_md5.update(s)
+                        size += len(s)
+            logger.debug("post size " + str(size))
+        else:
             for i in func:
                 s = stream.get()
                 if len(s) > 0:
                     bar.update(len(s))
-                    out_fp.write(s)
-                    out_fp.flush()
                     irods_md5.update(s)
                     size += len(s)
-        # else:
-        #     for i in func:
-        #         s = stream.get()
-        #         if len(s) > 0:
-        #             bar.update(len(s))
-        #             irods_md5.update(s)
-        #             size += len(s)
         return size
     except StopIteration:
         return b''
@@ -182,23 +187,23 @@ def archive_generator(func, stream, bar):
 
     try:
         size = 0
-        # if logging.getLogger().isEnabledFor(logging.DEBUG):
-        with open("debug_archive00.zip", 'wb') as out_fp:
+        if debug:
+            with open("debug_archive00.zip", 'wb') as out_fp:
+                for i in func:
+                    s = stream.get()
+                    if len(s) > 0:
+                        bar.update(len(s))
+                        out_fp.write(s)
+                        out_fp.flush()
+                        size += len(s)
+                        yield s
+            logger.debug("post size " + str(size))
+        else:
             for i in func:
                 s = stream.get()
                 if len(s) > 0:
                     bar.update(len(s))
-                    out_fp.write(s)
-                    out_fp.flush()
-                    size += len(s)
                     yield s
-        print("post size " + str(size))
-        # else:
-        #     for i in func:
-        #         s = stream.get()
-        #         if len(s) > 0:
-        #             bar.update(len(s))
-        #             yield s
     except StopIteration:
         return b''
 
@@ -313,6 +318,7 @@ def zip_collection(data, stream, session, upload_success):
         buff.close()
 
         sha_hexdigest = irods_sha.hexdigest()
+        logger.info(f"{'--':<20}Buffer checksums {f.name}")
         logger.info(f"{'--':<30}buffer {f.name} SHA: {sha_hexdigest}")
         if upload_success.get(f.path) == sha_hexdigest:
             logger.info(f"{'--':<30}SHA-256 {f.name}  match: True")
@@ -337,7 +343,7 @@ def get_zip_generator(collection, session, upload_success, rulemanager, irods_md
     """
 
     stream = UnseekableStream()
-    bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True)
+    bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
     data, fake_size = collection_zip_preparation(collection, rulemanager, upload_success)
     zip_iterator = zip_collection(data, stream, session, upload_success)
     iterator = IteratorAsBinaryFile(size, archive_generator(zip_iterator, stream, bar), irods_md5)
@@ -359,10 +365,10 @@ def zip_generator_faker(collection, session, upload_success, rulemanager, irods_
     """
 
     data, size = collection_zip_preparation(collection, rulemanager, upload_success)
-    logger.info(f"{'--':<10} bundle predicted uncompressed size: {size}")
+    logger.info(f"{'--':<20} bundle predicted uncompressed size: {size}")
     stream = UnseekableStream()
     zip_iterator = zip_collection(data, stream, session, upload_success)
-    bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True)
+    bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
     size_bundle = archive_generator_faker(zip_iterator, stream, bar, irods_md5)
 
     return size_bundle
@@ -404,10 +410,11 @@ def bag_collection(data, stream, session, upload_success, imetadata, collection)
 
         sha256_hexdigest = irods_sha256.hexdigest()
         sha1_hexdigest = irods_sha1.hexdigest()
-        print(f"{'--':<30}buffer {f.name} SHA-256: {sha256_hexdigest}")
-        print(f"{'--':<30}buffer {f.name} SHA-1: {sha1_hexdigest}")
+        logger.info(f"{'--':<20}Buffer checksums {f.name}:")
+        logger.info(f"{'--':<30}SHA-256: {sha256_hexdigest}")
+        logger.info(f"{'--':<30}SHA-1: {sha1_hexdigest}")
         if upload_success.get(f.path) == sha256_hexdigest:
-            print(f"{'--':<30}SHA-256 {f.name}  match: True")
+            logger.info(f"{'--':<30}SHA-256 match: True")
             upload_success.update({f.path: True})
 
             checksums.append((arc_name.replace(f'{collection.name}/data', 'data'), sha1_hexdigest))
@@ -569,7 +576,7 @@ def bag_generator_faker(collection, session, upload_success, rulemanager, irods_
     stream = UnseekableStream()
     zip_iterator = bag_collection(data, stream, session, upload_success, imetadata, collection)
 
-    bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True)
+    bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
     size_bundle = archive_generator_faker(zip_iterator, stream, bar, irods_md5)
 
     return size_bundle
@@ -589,10 +596,10 @@ def get_bag_generator(collection, session, upload_success, rulemanager, irods_md
     """
 
     data, fake_size = collection_zip_preparation(collection, rulemanager, upload_success)
-    print(f"{'--':<10} bundle predicted size: {size}")
+    logger.info(f"{'--':<20}bundle predicted size: {size}")
     stream = UnseekableStream()
     zip_iterator = bag_collection(data, stream, session, upload_success, imetadata, collection)
-    bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True)
+    bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
     iterator = IteratorAsBinaryFile(size, archive_generator(zip_iterator, stream, bar), irods_md5)
 
     return iterator

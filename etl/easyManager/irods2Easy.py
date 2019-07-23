@@ -18,7 +18,7 @@ class EasyExporter:
         try:
             self.do_export()
         except:
-            print("Unexpected error:", sys.exc_info()[0])
+            logger.error("Unexpected error:", sys.exc_info()[0])
             self.session_cleanup()
             raise
 

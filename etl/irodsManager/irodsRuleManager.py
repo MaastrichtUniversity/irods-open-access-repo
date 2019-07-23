@@ -47,7 +47,7 @@ class RuleManager:
 
         # Check if all the files have been successfully uploaded before deletion
         if len(upload_success) == len(self.collection.data_objects):
-            logger.info("--\t\t\t Start deletion")
+            logger.info(f"{'--':<20} Start deletion")
             for data in self.collection.data_objects:
                 if data.name != "metadata.xml":
                     rule_body = "do_deleteDataObject {" \
@@ -58,16 +58,16 @@ class RuleManager:
                     rule = Rule(self.session, body=rule_body, output="ruleExecOut")
                     out = self.parse_rule_output(rule.execute())
                     if out == "0":
-                        logger.info("--\t\t\t Delete:\t" + data.name)
+                        logger.info(f"{'--':<30} Delete:\t" + data.name)
                     else:
-                        logger.error("--\t\t\t File:\t" + out)
-            logger.info("--\t\t\t End deletion")
+                        logger.error(f"{'--':<30} File:\t" + out)
+            logger.info(f"{'--':<30} End deletion")
         else:
             logger.info("Deletion skipped. collection.files != uploaded.files")
 
     # TODO : Bulk chksums
     def rule_checksum(self, path):
-        logger.info("--\t\t\t Rule checksum")
+        logger.info(f"{'--':<20} Rule checksum")
         self.session.connection_timeout = 1200
         rule_body = "do_checkSum {" \
                     "{ msiDataObjChksum(" \

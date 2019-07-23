@@ -36,7 +36,7 @@ class EasyClient:
 
         self.dataset_status = None
         self.dataset_url = None
-        self.dataset_deposit_url = "https://act.easy.dans.knaw.nl/sword2/collection/1"
+        self.dataset_deposit_url = f"{self.host}/sword2/collection/1"
         self.dataset_pid = None
         self.last_export = None
 
@@ -48,8 +48,6 @@ class EasyClient:
 
         self.zip_name = "debug_archive.zip"
 
-    # from memory_profiler import profile
-    # @profile
     def post_it(self):
         collection = self.collection
         imetadata = self.irods_client.imetadata
@@ -61,9 +59,9 @@ class EasyClient:
         size_bundle = bag_generator_faker(collection, self.session, upload_success,
                                           rulemanager, irods_md5, imetadata)
 
-        print(f"stream size: {size_bundle}")
+        logger.info(f"{'--':<20}stream predicted size: {size_bundle}")
         md5_hexdigest = irods_md5.hexdigest()
-        print(f"{'--':<30}irods buffer MD5: {md5_hexdigest}")
+        logger.info(f"{'--':<20}irods buffer MD5: {md5_hexdigest}")
 
         self.irods_client.update_metadata_state('exporterState', 'prepare-bag', 'zip-bag')
 
@@ -72,7 +70,7 @@ class EasyClient:
         bundle_iterator = get_bag_generator(collection, self.session, upload_success,
                                             rulemanager, bundle_md5, imetadata, size_bundle)
 
-        print(f"{'--':<30}Post bundle")
+        logger.info(f"{'--':<20}Upload bag")
         self.irods_client.update_metadata_state('exporterState', 'zip-bag', 'upload-bag')
 
         resp = requests.post(
@@ -88,17 +86,17 @@ class EasyClient:
             },
         )
         bundle_md5_hexdigest = bundle_md5.hexdigest()
-        print(f"{'--':<30}request buffer MD5: {bundle_md5_hexdigest}")
-        print(f"{'--':<30}status_code: {resp.status_code}")
-        if resp.status_code == 201:
+        logger.info(f"{'--':<20}Request buffer MD5: {bundle_md5_hexdigest}")
+        if resp.status_code == HTTPStatus.CREATED:
             logger.debug(f"{'--':<30}{resp.content.decode('utf-8')}")
             self.check_status(resp.content.decode('utf-8'))
         else:
+            logger.error(f"{'--':<30}status_code: {resp.status_code}")
             logger.error(f"{'--':<30}{resp.content.decode('utf-8')}")
             raise
 
     def check_status(self, content):
-        print(f"{'--':<30}Check deposit status")
+        logger.info(f"{'--':<20}Check deposit status")
         ElementTree.register_namespace("atom", "http://www.w3.org/2005/Atom")
         ElementTree.register_namespace("terms", "http://purl.org/net/sword/terms/")
 
@@ -111,10 +109,10 @@ class EasyClient:
         while True:
             resp = requests.get(href, auth=(self.user, self.pwd))
 
-            if resp.status_code != 200:
+            if resp.status_code != HTTPStatus.OK:
                 content = resp.content.decode("utf-8")
-                print(resp.status_code)
-                print(content)
+                logger.debug(f"{'--':<30}{resp.status_code}")
+                logger.debug(f"{'--':<30}{content}")
                 break
 
             content = resp.content.decode("utf-8")
@@ -122,31 +120,27 @@ class EasyClient:
             category = root.find("./{http://www.w3.org/2005/Atom}category")
             term_refreshed = category.get('term')
             if term_refreshed == "INVALID" or term_refreshed == "REJECTED" or term_refreshed == "FAILED":
-                print(term_refreshed)
-                print(category.text)
-                if previous_term != term_refreshed:
-                    logger.info(f"{'--':<30}Update state {term_refreshed}")
-                    self.irods_client.update_metadata_state('exporterState', previous_term, term_refreshed)
+                logger.error(f"{'--':<30}state: {term_refreshed}")
+                logger.error(f"{'--':<30}state description: {category.text}")
+                self.irods_client.update_metadata_state('exporterState', previous_term, term_refreshed)
                 break
             elif term_refreshed == "ARCHIVED":
-                print(term_refreshed)
-                print(category.text)
-                if previous_term != term_refreshed:
-                    logger.info(f"{'--':<30}Update state {term_refreshed}")
-                    self.irods_client.update_metadata_state('exporterState', previous_term, term_refreshed)
+                logger.info(f"{'--':<30}state: {term_refreshed}")
+                logger.info(f"{'--':<30}state description: {category.text}")
+                self.dataset_pid = category.text
+                self.irods_client.update_metadata_state('exporterState', previous_term, term_refreshed)
                 break
             else:
-                print(term_refreshed)
-                print(category.text)
+                logger.info(f"{'--':<30}state: {term_refreshed}")
+                logger.info(f"{'--':<30}state description: {category.text}")
                 if previous_term != term_refreshed:
-                    logger.info(f"{'--':<30}Update state {term_refreshed}")
                     self.irods_client.update_metadata_state('exporterState', previous_term, term_refreshed)
                 previous_term = term_refreshed
                 time.sleep(15)
 
     def final_report(self):
         logger.info("Report final progress")
-        # self.irods_client.add_metadata_state('externalPID', self.dataset_pid, "Easy")
+        self.irods_client.add_metadata_state('externalPID', self.dataset_pid, "Easy")
         self.irods_client.update_metadata_state('exporterState', 'ARCHIVED', 'exported')
         time.sleep(5)
         self.irods_client.remove_metadata_state('exporterState', 'exported')
