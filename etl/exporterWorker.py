@@ -22,7 +22,10 @@ logger = logging.getLogger('root')
 def collection_etl(ch, method, properties, body):
     try:
         data = json.loads(body.decode("utf-8"))
-        logger.info(f" [x] Received %r" % data)
+        # remove user API token from logs
+        log_data = data.copy()
+        log_data.pop("token")
+        logger.info(f" [x] Received %r" % log_data)
     except json.decoder.JSONDecodeError:
         logger.error("json.loads %r" % body.decode("utf-8").replace("\"", "", 3))
     else:
@@ -67,8 +70,7 @@ def main(channel, retry_counter=None):
     except pika.exceptions.ConnectionClosed:
         logger.error("Failed with pika.exceptions.ConnectionClosed: Sleeping for 60 secs before next try. This was try " + str(retry_counter))
         time.sleep(60)
-        new_connection = pika.BlockingConnection(
-            pika.ConnectionParameters(os.environ['RABBITMQ_HOST'], 5672, '/', credentials))
+        new_connection = pika.BlockingConnection(parameters)
         new_ch = new_connection.channel()
         main(new_ch, retry_counter)
 
