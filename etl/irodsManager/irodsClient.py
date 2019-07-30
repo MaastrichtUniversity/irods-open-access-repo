@@ -1,5 +1,6 @@
 from irods.session import iRODSSession
 from irods.exception import iRODSException
+from irods.meta import iRODSMeta
 import xml.etree.ElementTree as ET
 import logging
 
@@ -36,8 +37,14 @@ class irodsClient():
     def prepare(self, path):
         logger.info("iRODS")
         self.connect()
-        self.read_collection_metadata(path)
+        self.coll = self.session.collections.get(path)
+        self.read_collection_metadata()
+        self.rulemanager = RuleManager(self.session, self.coll)
         self.rulemanager.rule_open()
+        # clear all exporterState AVU values and re-add in-queue-for-export
+        # in case of remaining failed report AVUs like: upload-failed , failed-dataset-creation etc ..
+        self.coll.metadata['exporterState'] = iRODSMeta('exporterState', 'in-queue-for-export')
+        self.update_metadata_state('exporterState', 'in-queue-for-export', 'create-exporter')
 
     @staticmethod
     def read_tag(root, tag):
@@ -74,14 +81,13 @@ class irodsClient():
                     node_dict.update({k.tag: k.text})
         return [node_dict]
 
-    def read_collection_metadata(self, collection_path):
+    def read_collection_metadata(self):
         logger.info("--\t Read collection metadata")
-        self.coll = self.session.collections.get(collection_path)
         for x in self.coll.metadata.items():
             self.imetadata.__dict__.update({x.name.lower(): x.value})
 
         logger.info("--\t Parse collection metadata.xml")
-        meta_xml = collection_path + "/metadata.xml"
+        meta_xml = self.coll.path + "/metadata.xml"
         buff = self.session.data_objects.open(meta_xml, 'r')
         root = ET.fromstring(buff.read())
         self.imetadata.date = root.find("date").text
@@ -98,10 +104,6 @@ class irodsClient():
         self.imetadata.contact = self.read_tag_node_dict(root, "contact")
 
         self.imetadata.articles = self.read_tag_list(root, "article")
-
-        self.rulemanager = RuleManager(self.session, self.coll)
-
-        self.update_metadata_state('exporterState', 'in-queue-for-export', 'prepare-export')
 
     def update_metadata_state(self, key, old_value, new_value):
         try:
