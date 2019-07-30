@@ -2,8 +2,11 @@ import logging
 import base64
 import binascii
 import unicodedata
+import os
+import json
 
 from irods.rule import Rule
+from irods.session import iRODSSession
 
 logger = logging.getLogger('iRODS to Dataverse')
 
@@ -47,7 +50,7 @@ class RuleManager:
 
         # Check if all the files have been successfully uploaded before deletion
         if len(upload_success) == len(self.collection.data_objects):
-            logger.info(f"{'--':<20} Start deletion")
+            logger.info(f"{'--':<20}Start deletion")
             for data in self.collection.data_objects:
                 if data.name != "metadata.xml":
                     rule_body = "do_deleteDataObject {" \
@@ -65,9 +68,8 @@ class RuleManager:
         else:
             logger.info("Deletion skipped. collection.files != uploaded.files")
 
-    # TODO : Bulk chksums
     def rule_checksum(self, path):
-        logger.info(f"{'--':<20} Rule checksum")
+        logger.info(f"{'--':<20}Rule checksum")
         self.session.connection_timeout = 1200
         rule_body = "do_checkSum {" \
                     "{ msiDataObjChksum(" \
@@ -82,6 +84,52 @@ class RuleManager:
         self.session.connection_timeout = 120
 
         return irods_hash_decode
+
+    @staticmethod
+    def rule_collection_checksum(path):
+        logger.info(f"{'--':<10}Query collection checksum")
+        session = iRODSSession(host=os.environ['IRODS_HOST'], port=1247, user=os.environ['IRODS_USER'],
+                               password=os.environ['IRODS_PASS'], zone='nlmumc')
+        session.connection_timeout = 1200
+
+        path = path.split('/')
+        project = path[3]
+        collID = path[4]
+
+        rule_body = f"""do_checkSum(){{
+            *project = '{project}';
+            *collID = '{collID}';
+            *collection = '/nlmumc/projects/*project/*collID';
+            *details = "{{}}";
+
+            foreach ( *Row in SELECT DATA_PATH, COLL_NAME WHERE COLL_NAME like "*collection%") {{
+                *subName = triml(*Row.DATA_PATH,*collID);
+
+                *name = *collection ++ str(*subName);
+
+                msiDataObjChksum(*name,"forceChksum=", *chkSum);
+                *chkSum = triml(*chkSum,"sha2:");
+
+                msiString2KeyValPair("", *titleKvp);
+                msiAddKeyVal(*titleKvp, *name, *chkSum);
+                msi_json_objops(*details, *titleKvp, "add");
+            }}
+            writeLine('stdout', *details);
+        }}
+        """
+
+        rule = Rule(session, body=rule_body, output="ruleExecOut")
+
+        irods_hash = RuleManager.parse_rule_output(rule.execute())
+        session.connection_timeout = 120
+
+        data = json.loads(irods_hash)
+        for k in data:
+            base_hash = base64.b64decode(data[k])
+            irods_hash_decode = binascii.hexlify(base_hash).decode("utf-8")
+            data[k] = irods_hash_decode
+
+        return data
 
     @staticmethod
     def parse_rule_output(out_param_array):

@@ -1,6 +1,5 @@
 import hashlib
 import io
-import tarfile
 import zipfile
 import logging
 from collections import OrderedDict
@@ -21,39 +20,6 @@ date = datetime.datetime.now().date()
 debug = False
 if logging.getLogger().isEnabledFor(logging.DEBUG):
     debug = True
-    
-
-class MultiPurposeReader:
-    """
-    Custom multi-part reader.
-    Update the chksums while reading the buffer by chunk.
-    """
-
-    def __init__(self, buffer, length, md5, sha):
-        self.len = None if length is None else int(length)
-        self._raw = buffer
-        self.md5 = md5
-        self.sha = sha
-        self.bar = tqdm(total=length, unit="bytes", smoothing=0.1, unit_scale=True)
-
-    def read(self, chunk_size):
-        force_size = 1024 * io.DEFAULT_BUFFER_SIZE
-
-        if chunk_size == -1 or chunk_size == 0 or chunk_size > force_size:
-            chunk = self._raw.read(chunk_size) or b''
-        else:
-            chunk = self._raw.read(force_size) or b''
-
-        self.len -= len(chunk)
-
-        if not chunk:
-            self.len = 0
-
-        self.md5.update(chunk)
-        self.sha.update(chunk)
-        self.bar.update(len(chunk))
-
-        return chunk
 
 
 class IteratorAsBinaryFile(object):
@@ -256,11 +222,12 @@ def calc_zip_block(size, file_path, zip64):
     return zip_size
 
 
-def collection_zip_preparation(collection, rulemanager, upload_success):
+def collection_zip_preparation(collection, rulemanager, upload_success, restrict_list):
     """
     Walk through the collection. Request iRODS file chksums.
     Return a list of all the file's path and the estimated zip size.
 
+    :param restrict_list:
     :param <irods.manager.collection_manager.CollectionManager> collection: iRODS collection to evaluate
     :param <irodsManager.irodsRuleManager.RuleManager> rulemanager: RuleManager to call chksums rule
     :param dict upload_success: {file_path: hash_key}
@@ -272,7 +239,13 @@ def collection_zip_preparation(collection, rulemanager, upload_success):
     sorted_path = sort_path_by_size(collection)
     zip64 = False
     for file_size, file in sorted_path.items():
-        data.append(file)
+
+        min_path = file.path.replace("/nlmumc/projects/", "")
+
+        if len(restrict_list) >= 0 and min_path in restrict_list:
+            data.append(file)
+
+        # data.append(file)
         size += calc_zip_block(file_size, file.path, zip64)
 
         if size >= zipfile.ZIP64_LIMIT:
@@ -290,12 +263,12 @@ def collection_zip_preparation(collection, rulemanager, upload_success):
     return data, size
 
 
-def zip_collection(data, stream, session, upload_success):
+def zip_collection(collection, stream, session, upload_success, rulemanager, restrict_list):
     """
     Create a generator to zip the collection.
     Also request the iRODS sha256 chksums and compare it to the buffer.
 
-    :param list data: list of files path
+    :param collection collection: list of files path
     :param UnseekableStream stream: raw buffer stream
     :param <irods.session.iRODSSession> session: Open iRODS session to the server
     :param dict upload_success: {file_path: hash_key}
@@ -303,32 +276,35 @@ def zip_collection(data, stream, session, upload_success):
 
     zip_buffer = zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED)
     yield
-    for f in data:
-        buff = session.data_objects.open(f.path, 'r')
 
-        zip_info = zipfile.ZipInfo(f.path)
-        zip_info.file_size = f.size
-        zip_info.compress_type = zipfile.ZIP_DEFLATED
-        irods_sha = hashlib.sha256()
-        with zip_buffer.open(zip_info, mode='w', force_zip64=True) as dest:
-            for chunk in iter(lambda: buff.read(BLOCK_SIZE), b''):
-                dest.write(chunk)
-                irods_sha.update(chunk)
-                yield
-        buff.close()
+    for coll, sub, files in collection.walk():
+        for file in files:
+            min_path = file.path.replace("/nlmumc/projects/", "")
+            if len(restrict_list) > 0 and (min_path not in restrict_list):
+                continue
 
-        sha_hexdigest = irods_sha.hexdigest()
-        logger.info(f"{'--':<20}Buffer checksums {f.name}")
-        logger.info(f"{'--':<30}buffer {f.name} SHA: {sha_hexdigest}")
-        if upload_success.get(f.path) == sha_hexdigest:
-            logger.info(f"{'--':<30}SHA-256 {f.name}  match: True")
-            upload_success.update({f.path: True})
+            irods_sha = hashlib.sha256()
+            buff = session.data_objects.open(file.path, 'r')
+
+            zip_info = zipfile.ZipInfo(min_path)
+            zip_info.file_size = file.size
+            zip_info.compress_type = zipfile.ZIP_DEFLATED
+            with zip_buffer.open(zip_info, mode='w') as dest:
+                for chunk in iter(lambda: buff.read(BLOCK_SIZE), b''):
+                    dest.write(chunk)
+                    irods_sha.update(chunk)
+                    yield
+            buff.close()
+
+            sha_hexdigest = irods_sha.hexdigest()
+            upload_success.update({file.path: sha_hexdigest})
 
     zip_buffer.close()
     yield
 
 
-def get_zip_generator(collection, session, upload_success, rulemanager, irods_md5, size) -> IteratorAsBinaryFile:
+def get_zip_generator(collection, session, upload_success, rulemanager, irods_md5, size,
+                      restrict_list) -> IteratorAsBinaryFile:
     """
     Bundle an iRODS collection into an uncompressed zip buffer.
     Return the zip buffer iterator.
@@ -344,14 +320,13 @@ def get_zip_generator(collection, session, upload_success, rulemanager, irods_md
 
     stream = UnseekableStream()
     bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
-    data, fake_size = collection_zip_preparation(collection, rulemanager, upload_success)
-    zip_iterator = zip_collection(data, stream, session, upload_success)
+    zip_iterator = zip_collection(collection, stream, session, upload_success, rulemanager, restrict_list)
     iterator = IteratorAsBinaryFile(size, archive_generator(zip_iterator, stream, bar), irods_md5)
 
     return iterator
 
 
-def zip_generator_faker(collection, session, upload_success, rulemanager, irods_md5) -> int:
+def zip_generator_faker(collection, session, upload_success, rulemanager, irods_md5, restrict_list) -> int:
     """
     Bundle an iRODS collection into an uncompressed zip buffer.
     Return the zip buffer iterator.
@@ -364,11 +339,9 @@ def zip_generator_faker(collection, session, upload_success, rulemanager, irods_
     :return: zip buffer iterator
     """
 
-    data, size = collection_zip_preparation(collection, rulemanager, upload_success)
-    logger.info(f"{'--':<20} bundle predicted uncompressed size: {size}")
     stream = UnseekableStream()
-    zip_iterator = zip_collection(data, stream, session, upload_success)
-    bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
+    bar = tqdm(total=1000, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
+    zip_iterator = zip_collection(collection, stream, session, upload_success, rulemanager, restrict_list)
     size_bundle = archive_generator_faker(zip_iterator, stream, bar, irods_md5)
 
     return size_bundle
@@ -401,7 +374,7 @@ def bag_collection(data, stream, session, upload_success, imetadata, collection)
         irods_sha1 = hashlib.sha1()
         with zip_buffer.open(zip_info, mode='w') as dest:
             for chunk in iter(lambda: buff.read(BLOCK_SIZE), b''):
-                dest.write(chunk,)
+                dest.write(chunk, )
                 irods_sha256.update(chunk)
                 irods_sha1.update(chunk)
                 total_bytes += len(chunk)
@@ -582,7 +555,8 @@ def bag_generator_faker(collection, session, upload_success, rulemanager, irods_
     return size_bundle
 
 
-def get_bag_generator(collection, session, upload_success, rulemanager, irods_md5, imetadata, size) -> IteratorAsBinaryFile:
+def get_bag_generator(collection, session, upload_success, rulemanager, irods_md5, imetadata,
+                      size) -> IteratorAsBinaryFile:
     """
     Bundle an iRODS collection into an uncompressed zip buffer.
     Return the zip buffer iterator.
@@ -596,7 +570,7 @@ def get_bag_generator(collection, session, upload_success, rulemanager, irods_md
     """
 
     data, fake_size = collection_zip_preparation(collection, rulemanager, upload_success)
-    logger.info(f"{'--':<20}bundle predicted size: {size}")
+    logger.info(f"{'--':<20}Bag predicted size: {size}")
     stream = UnseekableStream()
     zip_iterator = bag_collection(data, stream, session, upload_success, imetadata, collection)
     bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
@@ -604,57 +578,3 @@ def get_bag_generator(collection, session, upload_success, rulemanager, irods_md
 
     return iterator
 
-
-def calc_tar_block(nb):
-    if nb < 512:
-        return 512
-    remainder = divmod(nb, 512)[1]
-    if remainder == 0:
-        return nb
-    elif remainder > 0:
-        return nb + 512
-
-
-# https://gist.github.com/chipx86/9598b1e4a9a1a7831054
-def stream_build_tar(tar_name, collection, data, stream, session, upload_success):
-    tar = tarfile.TarFile.open(tar_name, 'w|', stream)
-    yield
-
-    for f in data:
-        filepath = f.path.replace(collection.path, '')
-        tar_info = tarfile.TarInfo(filepath)
-
-        tar_info.size = f.size
-        tar.addfile(tar_info)
-
-        buff = session.data_objects.open(f.path, 'r')
-
-        irods_sha = hashlib.sha256()
-
-        while True:
-            s = buff.read(BLOCK_SIZE)
-            if len(s) > 0:
-                tar.fileobj.write(s)
-                irods_sha.update(s)
-                yield
-
-            if len(s) < BLOCK_SIZE:
-                blocks, remainder = divmod(tar_info.size, tarfile.BLOCKSIZE)
-
-                if remainder > 0:
-                    tar.fileobj.write(tarfile.NUL * (tarfile.BLOCKSIZE - remainder))
-                    yield
-                    blocks += 1
-
-                tar.offset += blocks * tarfile.BLOCKSIZE
-                break
-        buff.close()
-
-        sha_hexdigest = irods_sha.hexdigest()
-        # logger.info(f"{'--':<30}buffer {f.name} SHA: {sha_hexdigest}")
-        if upload_success.get(f.path) == sha_hexdigest:
-            # logger.info(f"{'--':<30}SHA-256 {f.name}  match: True")
-            upload_success.update({f.path: True})
-
-    tar.close()
-    yield
