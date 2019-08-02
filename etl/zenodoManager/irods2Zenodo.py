@@ -1,10 +1,8 @@
 import logging
-import time
+import sys
 
-from irodsManager.irodsClient import irodsClient
 from zenodoManager.zenodoClient import ZenodoClient
 from zenodoManager.zenodoMetadataMapper import ZenodoMetadataMapper
-# from exporterUtils.utils import parse_config
 
 logger = logging.getLogger('iRODS to Dataverse')
 
@@ -13,56 +11,31 @@ class ZenodoExporter:
 
     def __init__(self):
         self.repository = "Zenodo"
+        self.irods_client = None
 
-    def init_export(self, data):
-        path = "/nlmumc/projects/" + data['project'] + "/" + data['collection']
-        ini = "resources/config.ini"
-        self.do_export(ini, path, data['token'])
+    def init_export(self, irods_client, data):
+        self.irods_client = irods_client
+        try:
+            self.do_export(data['token'], data['delete'], data['restrict'], data['dataexport'], data['restrict_list'])
+        except:
+            print("Unexpected error:", sys.exc_info()[0])
+            self.irods_client.session_cleanup()
+            raise
 
-    def do_export(self, ini, collection, token):
-        # Init
-        logger.info("Init")
-        config = parse_config(ini)
-        irods_config = config[0]
-
-        # iRODS
-        logger.info("iRODS")
-        iclient = irodsClient(irods_config)
-        iclient.connect()
-        iclient.read_collection_metadata(collection)
-
-        iclient.update_metadata_state('exporterState', 'in-queue-for-export', 'prepare-export')
-
+    def do_export(self, token, delete=False, restrict=False, data_export=False, restrict_list=""):
         # Metadata
         logger.info("Metadata")
-        mapper = ZenodoMetadataMapper(iclient.imetadata)
+        mapper = ZenodoMetadataMapper(self.irods_client.imetadata)
         md = mapper.read_metadata()
 
-        iclient.rulemanager.rule_open()
-        iclient.update_metadata_state('exporterState', 'prepare-export', 'do-export')
+        # Zenodo
+        logger.info("Zenodo")
+        zn = ZenodoClient(self.irods_client, token)
+        zn.create_deposit(md, data_export)
+        if data_export:
+            zn.import_zip_collection()
 
-        zn = ZenodoClient(iclient, token)
-        zn.create_deposit(md)
-        zn.import_files()
-
-        url = zn.host + "/deposit/" + str(zn.deposition_id)
-
-        iclient.update_metadata_state('externalLink', url, url)
-        iclient.update_metadata_state('exporterState', 'do-export', 'exported')
-        time.sleep(15)
-        iclient.update_metadata_state('exporterState', 'exported', '')
-
-        iclient.rulemanager.rule_close()
+        # Cleanup
+        self.irods_client.rulemanager.rule_close()
+        self.irods_client.session.cleanup()
         logger.info("Upload Done")
-
-
-def main():
-    path = "/nlmumc/projects/P000000003/C000000001"
-    # host = "https://sandbox.zenodo.org"
-    zn = ZenodoExporter()
-    token = "boVrUQbGqxiMNCw8Srz6kNEE5cxkHYfQGxGwidxviwbC1OmCi5ZQwCVHCcn4"
-    zn.do_export("/opt/app/resources/config.ini", path, token)
-
-
-if __name__ == "__main__":
-        main()

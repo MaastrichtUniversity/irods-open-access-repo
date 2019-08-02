@@ -10,6 +10,11 @@ class ZenodoMetadataMapper:
         self.md = None
 
     def read_metadata(self):
+        logger.info("--\t Map metadata")
+        if len(self.imetadata.description) < 3:
+            self.imetadata.description = "Shorter than minimum length 3"
+        if len(self.imetadata.title) < 3:
+            self.imetadata.title = self.imetadata.title + "_size"
         metadata = {}
         metadata.update({'title': self.imetadata.title})
         metadata.update({'upload_type': 'dataset'})
@@ -27,14 +32,18 @@ class ZenodoMetadataMapper:
 
     def add_title(self):
         title = {'title': self.imetadata.title}
+        # {'status': 400, 'message': 'Validation error.',
+        #  'errors': [{'field': 'metadata.title', 'message': 'Shorter than minimum length 3.'}]}
         return title
 
     def add_description(self):
+        if len(self.imetadata.description) < 3:
+            self.imetadata.description = "Shorter than minimum length 3"
         description = {'description': self.imetadata.description}
         return description
 
     def add_creator(self):
-        creator = {'creators': [{'name': self.imetadata.creator, 'affiliation': 'Datahub'}]}
+        creator = {'creators': [{'name': self.imetadata.creator, 'affiliation': 'DataHub'}]}
         return creator
 
     def add_keywords(self):

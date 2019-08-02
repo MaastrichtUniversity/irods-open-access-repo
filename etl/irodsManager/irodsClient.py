@@ -5,13 +5,13 @@ import xml.etree.ElementTree as ET
 import logging
 
 from irodsManager.irodsRuleManager import RuleManager
+from irodsManager.irodsUtils import irodsMetadata, ExporterState
 
 logger = logging.getLogger('iRODS to Dataverse')
 
 
-class irodsClient():
-    """
-    iRODS client to connect to the iRODS server, to retrieve metadata and data.
+class irodsClient:
+    """iRODS client to connect to the iRODS server, to retrieve metadata and data.
     """
 
     def __init__(self, host=None, port=None, user=None, password=None, zone=None):
@@ -43,8 +43,8 @@ class irodsClient():
         self.rulemanager.rule_open()
         # clear all exporterState AVU values and re-add in-queue-for-export
         # in case of remaining failed report AVUs like: upload-failed , failed-dataset-creation etc ..
-        self.coll.metadata['exporterState'] = iRODSMeta('exporterState', 'in-queue-for-export')
-        self.update_metadata_state('exporterState', 'in-queue-for-export', 'create-exporter')
+        self.coll.metadata['exporterState'] = iRODSMeta('exporterState', ExporterState.IN_QUEUE_FOR_EXPORT.value)
+        self.update_metadata_state(ExporterState.IN_QUEUE_FOR_EXPORT.value, ExporterState.CREATE_EXPORTER.value)
 
     @staticmethod
     def read_tag(root, tag):
@@ -105,9 +105,10 @@ class irodsClient():
 
         self.imetadata.articles = self.read_tag_list(root, "article")
 
-    def update_metadata_state(self, key, old_value, new_value):
+    def update_metadata_state(self, old_value, new_value, key=ExporterState.ATTRIBUTE.value):
         try:
-            self.coll.metadata.remove(key, old_value)
+            if old_value != '' and new_value != '':
+                self.coll.metadata.remove(key, old_value)
         except iRODSException as error:
             logger.error(f"{key} : {old_value}  {error}")
 
@@ -117,14 +118,14 @@ class irodsClient():
         except iRODSException as error:
             logger.error(f"{key} : {new_value}  {error}")
 
-    def remove_metadata_state(self, key, value):
+    def remove_metadata(self, key, value):
         try:
             if value:
                 self.coll.metadata.remove(key, value)
         except iRODSException as error:
             logger.error(f"{key} : {value}  {error}")
 
-    def add_metadata_state(self, key, value, unit=None):
+    def add_metadata(self, key, value, unit=None):
         try:
             if unit is None and value:
                 self.coll.metadata.add(key, value)
@@ -133,28 +134,15 @@ class irodsClient():
         except iRODSException as error:
             logger.error(f"{key} : {value}  {error}")
 
+    def session_cleanup(self):
+        logger.error("An error occurred during the upload")
+        logger.error("Clean up exporterState AVU")
 
-class irodsMetadata:
-    """
-    Store all metadata from iRODS
-    """
+        # exporter client crashed, clean all exporterState AVUs
+        for state in ExporterState:
+            self.remove_metadata('exporterState', state.value)
 
-    def __init__(self):
-        self.title = None
-        self.creator = None
-        self.description = None
-        self.date = None
-        self.pid = None
+        logger.error("Call rule closeProjectCollection")
+        self.rulemanager.rule_close()
 
-        self.byteSize = None
-        self.numFiles = None
 
-        self.tissue = None
-        self.technology = None
-        self.organism = None
-        self.factors = None
-        self.protocol = None
-        self.contact = None
-        self.articles = None
-
-        self.dataset_json = None

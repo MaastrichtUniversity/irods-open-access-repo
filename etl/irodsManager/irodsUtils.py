@@ -2,14 +2,16 @@ import hashlib
 import io
 import zipfile
 import logging
-from collections import OrderedDict
+import datetime
 
+from irodsManager.irodsRuleManager import RuleManager
+
+from enum import Enum
 from tqdm import tqdm
 from io import RawIOBase
 from requests_toolbelt.multipart.encoder import CustomBytesIO, encode_with
 from requests.utils import super_len
 from xml.etree import ElementTree
-import datetime
 
 logger = logging.getLogger('iRODS to Dataverse')
 BLOCK_SIZE = 1024 * io.DEFAULT_BUFFER_SIZE
@@ -78,8 +80,8 @@ class IteratorAsBinaryFile(object):
         if size < 0:
             self.len = 0
 
-        self.md5.update(encode_with(s, self.encoding))
-        return encode_with(s, self.encoding)
+        self.md5.update(s)
+        return s
 
 
 class UnseekableStream(RawIOBase):
@@ -174,109 +176,22 @@ def archive_generator(func, stream, bar):
         return b''
 
 
-def sort_path_by_size(collection):
-    sort = {}
-    for coll, sub, files in collection.walk():
-        for file in files:
-            sort.update({file.size: file})
-
-    return OrderedDict(sorted(sort.items(), reverse=True, key=lambda t: t[0]))
-
-
-def calc_zip_block(size, file_path, zip64):
-    """
-    Calculate the zip member block size.
-
-    :param int size: file size
-    :param str file_path: file path
-    :param boolean zip64: Flag for zip64 format, if True add extra header
-    :return: int - zip member block size
-    """
-
-    # File size
-    zip_size = size
-    if size >= zipfile.ZIP64_LIMIT:
-        # Local file header  30 + Length filename + Data descriptor 24 + ZIP64 extra_data 20
-        zip_size += 30 + len(file_path) + 24 + 20
-        # Central directory file header 46 + Length filename  + ZIP64 extra_data 20
-        zip_size += 46 + len(file_path)
-        if zip64:
-            # Central directory ZIP64 28
-            zip_size += 28
-        else:
-            # First Central directory ZIP64  20
-            zip_size += 20
-
-    else:
-        # Local file header  30 + Length filename + Data descriptor ZIP64 - 24 + ZIP64 extra_data - 20
-        zip_size += 30 + len(file_path) + 24 + 20
-        # Central directory file header 46 + Length filename
-        zip_size += 46 + len(file_path)
-        if zip64:
-            # Central directory ZIP64 - 12
-            zip_size += 12
-        # else:
-        #     # Data descriptor - 16
-        #     zip_size += 16
-
-    return zip_size
-
-
-def collection_zip_preparation(collection, rulemanager, upload_success, restrict_list):
-    """
-    Walk through the collection. Request iRODS file chksums.
-    Return a list of all the file's path and the estimated zip size.
-
-    :param restrict_list:
-    :param <irods.manager.collection_manager.CollectionManager> collection: iRODS collection to evaluate
-    :param <irodsManager.irodsRuleManager.RuleManager> rulemanager: RuleManager to call chksums rule
-    :param dict upload_success: {file_path: hash_key}
-    :return: (list, int)
-    """
-
-    data = []
-    size = 0
-    sorted_path = sort_path_by_size(collection)
-    zip64 = False
-    for file_size, file in sorted_path.items():
-
-        min_path = file.path.replace("/nlmumc/projects/", "")
-
-        if len(restrict_list) >= 0 and min_path in restrict_list:
-            data.append(file)
-
-        # data.append(file)
-        size += calc_zip_block(file_size, file.path, zip64)
-
-        if size >= zipfile.ZIP64_LIMIT:
-            zip64 = True
-
-        irods_hash_decode = rulemanager.rule_checksum(file.path)
-        logger.info(f"{'--':<30}iRODS {file.name} SHA-256: {irods_hash_decode}")
-        upload_success.update({file.path: irods_hash_decode})
-
-    # End of central directory record (EOCD) 22
-    size += 22
-    if zip64:
-        # Zip64 end of central directory record 56 & locator 20
-        size += 56 + 20
-    return data, size
-
-
-def zip_collection(collection, stream, session, upload_success, rulemanager, restrict_list):
+def zip_collection(irods_client, stream, upload_success,  restrict_list):
     """
     Create a generator to zip the collection.
     Also request the iRODS sha256 chksums and compare it to the buffer.
 
-    :param collection collection: list of files path
+    :param irods_client: list of files path
     :param UnseekableStream stream: raw buffer stream
-    :param <irods.session.iRODSSession> session: Open iRODS session to the server
+    :param list restrict_list: list of files path
     :param dict upload_success: {file_path: hash_key}
     """
 
     zip_buffer = zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED)
     yield
 
+    collection = irods_client.coll
+    session = irods_client.session
     for coll, sub, files in collection.walk():
         for file in files:
             min_path = file.path.replace("/nlmumc/projects/", "")
@@ -303,16 +218,14 @@ def zip_collection(collection, stream, session, upload_success, rulemanager, res
     yield
 
 
-def get_zip_generator(collection, session, upload_success, rulemanager, irods_md5, size,
-                      restrict_list) -> IteratorAsBinaryFile:
+def get_zip_generator(irods_client, upload_success, irods_md5, restrict_list, size) -> IteratorAsBinaryFile:
     """
     Bundle an iRODS collection into an uncompressed zip buffer.
     Return the zip buffer iterator.
 
-    :param <irods.manager.collection_manager.CollectionManager> collection: iRODS collection to zip
-    :param <irods.session.iRODSSession> session:  Open iRODS session to the server
+    :param irods_client: iRODS collection to zip
     :param dict upload_success: {file_path: hash_key}
-    :param <irodsManager.irodsRuleManager.RuleManager> rulemanager: RuleManager to call chksums rule
+    :param list restrict_list: RuleManager to call chksums rule
     :param irods_md5: hashlib.md5()
     :param size:
     :return: zip buffer iterator
@@ -320,88 +233,88 @@ def get_zip_generator(collection, session, upload_success, rulemanager, irods_md
 
     stream = UnseekableStream()
     bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
-    zip_iterator = zip_collection(collection, stream, session, upload_success, rulemanager, restrict_list)
+    zip_iterator = zip_collection(irods_client, stream, upload_success, restrict_list)
     iterator = IteratorAsBinaryFile(size, archive_generator(zip_iterator, stream, bar), irods_md5)
 
     return iterator
 
 
-def zip_generator_faker(collection, session, upload_success, rulemanager, irods_md5, restrict_list) -> int:
+def zip_generator_faker(irods_client, upload_success, irods_md5, restrict_list) -> int:
     """
     Bundle an iRODS collection into an uncompressed zip buffer.
     Return the zip buffer iterator.
 
-    :param <irods.manager.collection_manager.CollectionManager> collection: iRODS collection to zip
-    :param <irods.session.iRODSSession> session:  Open iRODS session to the server
+    :param irods_client: iRODS collection to zip
     :param dict upload_success: {file_path: hash_key}
-    :param <irodsManager.irodsRuleManager.RuleManager> rulemanager: RuleManager to call chksums rule
+    :param list restrict_list: RuleManager to call chksums rule
     :param irods_md5: hashlib.md5()
     :return: zip buffer iterator
     """
 
     stream = UnseekableStream()
     bar = tqdm(total=1000, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
-    zip_iterator = zip_collection(collection, stream, session, upload_success, rulemanager, restrict_list)
+    zip_iterator = zip_collection(irods_client, stream, upload_success, restrict_list)
     size_bundle = archive_generator_faker(zip_iterator, stream, bar, irods_md5)
 
     return size_bundle
 
 
-def bag_collection(data, stream, session, upload_success, imetadata, collection):
+def bag_collection(irods_client, stream, upload_success):
     """
     Create a generator to zip the collection.
     Also request the iRODS sha256 chksums and compare it to the buffer.
 
-    :param list data: list of files path
+    :param irods_client : list of files path
     :param UnseekableStream stream: raw buffer stream
-    :param <irods.session.iRODSSession> session: Open iRODS session to the server
     :param dict upload_success: {file_path: hash_key}
     """
 
     zip_buffer = zipfile.ZipFile(stream, 'w', compression=zipfile.ZIP_DEFLATED)
     yield
-    checksums = []
+
+    collection = irods_client.coll
+    session = irods_client.session
+    imetadata = irods_client.imetadata
+    checksum_list = []
     total_bytes = 0
     total_files = 0
-    for f in data:
-        total_files += 1
-        buff = session.data_objects.open(f.path, 'r')
-        arc_name = f.path.replace(collection.path, f'{collection.name}/data')
-        zip_info = zipfile.ZipInfo(arc_name)
-        zip_info.file_size = f.size
-        zip_info.compress_type = zipfile.ZIP_DEFLATED
-        irods_sha256 = hashlib.sha256()
-        irods_sha1 = hashlib.sha1()
-        with zip_buffer.open(zip_info, mode='w') as dest:
-            for chunk in iter(lambda: buff.read(BLOCK_SIZE), b''):
-                dest.write(chunk, )
-                irods_sha256.update(chunk)
-                irods_sha1.update(chunk)
-                total_bytes += len(chunk)
-                yield
-        buff.close()
+    for coll, sub, files in collection.walk():
+        for f in files:
+            total_files += 1
+            buff = session.data_objects.open(f.path, 'r')
+            arc_name = f.path.replace(collection.path, f'{collection.name}/data')
+            zip_info = zipfile.ZipInfo(arc_name)
+            zip_info.file_size = f.size
+            zip_info.compress_type = zipfile.ZIP_DEFLATED
+            irods_sha256 = hashlib.sha256()
+            irods_sha1 = hashlib.sha1()
+            with zip_buffer.open(zip_info, mode='w') as dest:
+                for chunk in iter(lambda: buff.read(BLOCK_SIZE), b''):
+                    dest.write(chunk, )
+                    irods_sha256.update(chunk)
+                    irods_sha1.update(chunk)
+                    total_bytes += len(chunk)
+                    yield
+            buff.close()
 
-        sha256_hexdigest = irods_sha256.hexdigest()
-        sha1_hexdigest = irods_sha1.hexdigest()
-        logger.info(f"{'--':<20}Buffer checksums {f.name}:")
-        logger.info(f"{'--':<30}SHA-256: {sha256_hexdigest}")
-        logger.info(f"{'--':<30}SHA-1: {sha1_hexdigest}")
-        if upload_success.get(f.path) == sha256_hexdigest:
-            logger.info(f"{'--':<30}SHA-256 match: True")
-            upload_success.update({f.path: True})
-
-            checksums.append((arc_name.replace(f'{collection.name}/data', 'data'), sha1_hexdigest))
+            sha1_hexdigest = irods_sha1.hexdigest()
+            sha_hexdigest = irods_sha256.hexdigest()
+            upload_success.update({f.path: sha_hexdigest})
+            # logger.info(f"{'--':<20}Buffer checksum {f.name}:")
+            # logger.info(f"{'--':<30}SHA-256: {sha256_hexdigest}")
+            # logger.info(f"{'--':<30}SHA-1: {sha1_hexdigest}")
+            checksum_list.append((arc_name.replace(f'{collection.name}/data', 'data'), sha1_hexdigest))
     yield
 
     tagmanifest = []
-    checksums = sorted(checksums)
+    checksum_list = sorted(checksum_list)
     manifest_name = f"{collection.name}/manifest-sha1.txt"
     zip_info = zipfile.ZipInfo(manifest_name)
     zip_info.compress_type = zipfile.ZIP_DEFLATED
     m_size = 0
     with zip_buffer.open(zip_info, mode='w') as manifest:
         md5 = hashlib.md5()
-        for filename, digest in checksums:
+        for filename, digest in checksum_list:
             line = "%s  %s\n" % (digest, filename)
             line = line.encode('utf-8')
             m_size += len(line)
@@ -487,7 +400,7 @@ Payload-Oxum: {oxum}
         for fmt in file.iter('{http://purl.org/dc/terms/}format'):
             pass
 
-        for filename, digest in checksums:
+        for filename, digest in checksum_list:
             if filename != "data/metadata.xml":
                 new_file = ElementTree.SubElement(root, file.tag)
                 new_file.attrib = {"filepath": filename.replace(f'{collection.name}/data', 'data')}
@@ -532,49 +445,111 @@ Payload-Oxum: {oxum}
     yield
 
 
-def bag_generator_faker(collection, session, upload_success, rulemanager, irods_md5, imetadata):
+def bag_generator_faker(irods_client, upload_success, irods_md5):
     """
     Bundle an iRODS collection into an uncompressed zip buffer.
     Return the zip buffer iterator.
 
-    :param <irods.manager.collection_manager.CollectionManager> collection: iRODS collection to zip
-    :param <irods.session.iRODSSession> session:  Open iRODS session to the server
+    :param irods_client: iRODS collection to zip
     :param dict upload_success: {file_path: hash_key}
-    :param <irodsManager.irodsRuleManager.RuleManager> rulemanager: RuleManager to call chksums rule
     :param irods_md5: hashlib.md5()
     :return: zip buffer iterator
     """
 
-    data, size = collection_zip_preparation(collection, rulemanager, upload_success)
     stream = UnseekableStream()
-    zip_iterator = bag_collection(data, stream, session, upload_success, imetadata, collection)
-
-    bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
+    bar = tqdm(total=100000000, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
+    zip_iterator = bag_collection(irods_client, stream, upload_success)
     size_bundle = archive_generator_faker(zip_iterator, stream, bar, irods_md5)
 
     return size_bundle
 
 
-def get_bag_generator(collection, session, upload_success, rulemanager, irods_md5, imetadata,
-                      size) -> IteratorAsBinaryFile:
+def get_bag_generator(irods_client, upload_success, irods_md5, size) -> IteratorAsBinaryFile:
     """
     Bundle an iRODS collection into an uncompressed zip buffer.
     Return the zip buffer iterator.
 
-    :param <irods.manager.collection_manager.CollectionManager> collection: iRODS collection to zip
-    :param <irods.session.iRODSSession> session:  Open iRODS session to the server
+    :param irods_client: iRODS collection to zip
     :param dict upload_success: {file_path: hash_key}
-    :param <irodsManager.irodsRuleManager.RuleManager> rulemanager: RuleManager to call chksums rule
     :param irods_md5: hashlib.md5()
+    :param int size: predicted size
     :return: zip buffer iterator
     """
 
-    data, fake_size = collection_zip_preparation(collection, rulemanager, upload_success)
     logger.info(f"{'--':<20}Bag predicted size: {size}")
     stream = UnseekableStream()
-    zip_iterator = bag_collection(data, stream, session, upload_success, imetadata, collection)
     bar = tqdm(total=size, unit="bytes", smoothing=0.1, unit_scale=True, disable=not debug)
+    zip_iterator = bag_collection(irods_client, stream, upload_success)
     iterator = IteratorAsBinaryFile(size, archive_generator(zip_iterator, stream, bar), irods_md5)
 
     return iterator
 
+
+class ExporterState(Enum):
+    """Enum exporter state
+    """
+
+    ATTRIBUTE = 'exporterState'
+
+    IN_QUEUE_FOR_EXPORT = "in-queue-for-export"
+
+    CREATE_EXPORTER = "create-exporter"
+    CREATE_DATASET = "create-dataset"
+    PREPARE_COLLECTION = "prepare-collection"
+    ZIP_COLLECTION = "zip-collection"
+    UPLOAD_ZIPPED_COLLECTION = "upload-zipped-collection"
+    VALIDATE_UPLOAD = "validate-upload"
+    VALIDATE_CHECKSUM = "validate-checksum"
+
+    DATASET_UNKNOWN = "dataset-unknown"
+    CREATE_DATASET_FAILED = "create-dataset-failed"
+    UPLOAD_FAILED = "upload-failed"
+    UPLOAD_CORRUPTED = "upload-corrupted"
+
+    FINALIZE = "finalize"
+    EXPORTED = "exported"
+    # PREPARE_EXPORT = "prepare-export"
+    # DO_EXPORT = "do-export"
+    # PREPARE_BAG = "prepare-bag"
+    # ZIP_BAG = "zip-bag"
+    # UPLOAD_BAG = "upload-bag"
+    # INVALID = None
+    # REJECTED = None
+    # FAILED = None
+    # SUBMITTED = None
+    # UPLOADED = None
+    # FINALIZING = None
+    # DRAFT = None
+    # ARCHIVED = None
+
+
+class ExporterClient:
+
+    @staticmethod
+    def run_checksum(path):
+        return RuleManager.rule_collection_checksum(path)
+
+
+class irodsMetadata:
+    """Store all metadata from iRODS
+    """
+
+    def __init__(self):
+        self.title = None
+        self.creator = None
+        self.description = None
+        self.date = None
+        self.pid = None
+
+        self.byteSize = None
+        self.numFiles = None
+
+        self.tissue = None
+        self.technology = None
+        self.organism = None
+        self.factors = None
+        self.protocol = None
+        self.contact = None
+        self.articles = None
+
+        self.dataset_json = None

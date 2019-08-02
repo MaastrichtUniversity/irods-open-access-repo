@@ -1,102 +1,163 @@
-
 import hashlib
 import json
 import logging
-import io
-from builtins import print
-
+import time
 import requests
+
+from irodsManager.irodsUtils import get_zip_generator, zip_generator_faker, ExporterClient, ExporterState as Status
+
+from requests_toolbelt.multipart.encoder import MultipartEncoder
+from http import HTTPStatus
+from multiprocessing import Pool
 
 logger = logging.getLogger('iRODS to Dataverse')
 
 
-class ZenodoClient:
+class ZenodoClient(ExporterClient):
+    """Zenodo client to import datasets and files
     """
-    Zenodo client to import datasets and files
-    """
-
-    # READ_BUFFER_SIZE = 1024 * io.DEFAULT_BUFFER_SIZE
-    READ_BUFFER_SIZE = 1024 *  1048576
-    # READ_BUFFER_SIZE = 65536
-    HTTP_STATUS_OK = 200
-    HTTP_STATUS_Created = 201
-    HTTP_STATUS_BadRequest = 400
-    HTTP_STATUS_NotFound = 404
 
     def __init__(self, irodsclient, token):
         """
 
-        :param host: String IP of the dataverseManager's host
         :param token: String token credential
-        :param alias: String Alias/ID of the dataverseManager where to import dataset & files
         :param irodsclient: irodsClient object - client to user iRODS database
         """
-        self.host = "https://sandbox.zenodo.org"
+        self.host = "https://zenodo.org"
         self.token = token
-        self.irodsclient = irodsclient
-        self.pid = irodsclient.imetadata.pid
+        self.irods_client = irodsclient
         self.collection = irodsclient.coll
         self.session = irodsclient.session
         self.rulemanager = irodsclient.rulemanager
+
+        self.pool = None
+        self.result = None
+        self.irods_md5 = None
+
         self.deposition_status = None
         self.deposition_id = None
+        self.deposition_url = None
 
         self.access = {'access_token': self.token}
+        self.restrict_list = []
+        self.upload_success = {}
+        self.zip_name = f"Test_{irodsclient.imetadata.title}.zip"
 
-    def create_deposit(self, md):
-        headers = {"Content-Type": "application/json"}
+    def create_deposit(self, md, data_export):
+        logger.info(f"{'--':<10}Dataset - request creation")
 
-        r = requests.post(self.host + '/api/deposit/depositions',
-                          params=self.access, data=json.dumps(md),
-                          headers=headers)
+        self.irods_client.update_metadata_state(Status.CREATE_EXPORTER.value, Status.CREATE_DATASET.value)
+        resp = requests.post(self.host + '/api/deposit/depositions',
+                             params=self.access, data=json.dumps(md),
+                             headers={"Content-Type": "application/json"})
 
-        self.deposition_status = r.status_code
-        logger.info(self.deposition_status)
-        #201
-        logger.info(r.json())
-        self.deposition_id = r.json()['id']
-        pass
+        self.deposition_status = resp.status_code
+        if self.deposition_status == HTTPStatus.CREATED.value:
+            self.deposition_id = resp.json()['id']
+            self.deposition_url = resp.json()['links']['files']
+            logger.info(f"{'--':<20}Dataset created with deposit id: {self.deposition_id}")
+        else:
+            logger.error(f"{'--':<20}Create dataset failed")
+            logger.error(resp.content)
+            self.irods_client.update_metadata_state(Status.CREATE_DATASET.value, Status.CREATE_DATASET_FAILED.value)
 
-    def import_files(self):
+        if not data_export and self.deposition_status == HTTPStatus.CREATED.value:
+            self.irods_client.update_metadata_state(Status.CREATE_DATASET.value, Status.FINALIZE.value)
+            self._final_report()
 
-        logger.info("Upload files:")
+    def import_zip_collection(self):
+        if self.deposition_url is not None:
+            self.irods_client.update_metadata_state(Status.CREATE_DATASET.value, Status.PREPARE_COLLECTION.value)
+            self.pool = Pool(processes=1)
+            self.result = self.pool.apply_async(self.run_checksum, [self.collection.path])
 
-        upload_success = {}
+            size_bundle = self._prepare_zip()
+            response = self._zip_collection(size_bundle)
+            validated = self._validate_checksum()
+            if validated:
+                self._validate_upload(response)
+                self._final_report()
+        else:
+            logger.error(f"{'--':<20}Dataset unknown")
+            self.irods_client.update_metadata_state(Status.CREATE_DATASET.value, Status.DATASET_UNKNOWN.value)
 
-        self.irodsclient.update_metadata_state('exporterState', 'do-export', 'do-export-start')
+    def _prepare_zip(self):
+        logger.info(f"{'--':<10}Prepare zip")
 
-        last_export = 'do-export-start'
-        for data in self.collection.data_objects:
-            logger.info("--\t" + data.name)
+        self.irods_client.update_metadata_state(Status.PREPARE_COLLECTION.value, Status.ZIP_COLLECTION.value)
+        irods_md5 = hashlib.md5()
+        size_bundle = zip_generator_faker(self.irods_client, self.upload_success, irods_md5, self.restrict_list)
+        md5_hexdigest = irods_md5.hexdigest()
+        logger.info(f"{'--':<20}Buffer faker MD5: {md5_hexdigest}")
 
-            self.irodsclient.update_metadata_state('exporterState', last_export, 'do-export-' + data.name)
-            last_export = 'do-export-' + data.name
+        return size_bundle
 
-            buff = self.session.data_objects.open(data.path, 'r')
-            irods_sha = hashlib.sha256()
-            irods_md5 = hashlib.md5()
-            buff_read = bytes()
-            for chunk in self.chunks(buff, self.READ_BUFFER_SIZE):
-                irods_sha.update(chunk)
-                irods_md5.update(chunk)
-                buff_read = buff_read + chunk
+    def _zip_collection(self, size_bundle):
+        logger.info(f"{'--':<10}Upload zip")
 
-            md5_hexdigest = irods_md5.hexdigest()
-            sha_hexdigest = irods_sha.hexdigest()
-            irods_hash_decode = self.rulemanager.rule_checksum(data.name)
+        self.irods_client.update_metadata_state(Status.ZIP_COLLECTION.value, Status.UPLOAD_ZIPPED_COLLECTION.value)
+        self.irods_md5 = hashlib.md5()
+        bundle_iterator = get_zip_generator(self.irods_client, self.upload_success,
+                                            self.irods_md5, self.restrict_list, size_bundle)
 
-            if sha_hexdigest == irods_hash_decode:
-                logger.info("--\t\t\t SHA-256 test:\t True")
-                request_data = {'filename': data.name}
-                files = {'file': (data.name, buff_read)}
-                r = requests.post(self.host + '/api/deposit/depositions/%s/files' % self.deposition_id,
-                                  params=self.access, data=request_data,
-                                  files=files)
-                logger.info(r.status_code)
-                logger.info(r.json())
+        fields = {'filename': self.zip_name,
+                  'file': (self.zip_name, bundle_iterator)
+                  }
+        multipart_encoder = MultipartEncoder(fields=fields)
+        resp = requests.post(self.deposition_url,
+                             params=self.access,
+                             data=multipart_encoder,
+                             headers={'Content-Type': multipart_encoder.content_type},
+                             )
 
-        self.irodsclient.update_metadata_state('exporterState', last_export, 'do-export')
-        pass
+        return resp
 
-    def chunks(self, f, chunksize=io.DEFAULT_BUFFER_SIZE):
-        return iter(lambda: f.read(chunksize), b'')
+    def _validate_checksum(self):
+        logger.info(f"{'--':<10}Validate checksum")
+
+        self.irods_client.update_metadata_state(Status.UPLOAD_ZIPPED_COLLECTION.value, Status.VALIDATE_CHECKSUM.value)
+        self.pool.close()
+        self.pool.join()
+        chksums = self.result.get()
+        count = 0
+        validated = False
+        for k in self.upload_success.keys():
+            if self.upload_success[k] == chksums[k]:
+                self.upload_success.update({k: True})
+                count += 1
+        if count == len(self.upload_success):
+            validated = True
+            logger.info(f"{'--':<20}iRODS & buffer SHA-256 checksum: validated")
+        else:
+            logger.error(f"{'--':<20}SHA-256 checksum: failed")
+            self.irods_client.update_metadata_state(Status.VALIDATE_UPLOAD.value, Status.UPLOAD_CORRUPTED.value)
+
+        return validated
+
+    def _validate_upload(self, resp):
+        logger.info(f"{'--':<10}Validate upload")
+
+        self.irods_client.update_metadata_state(Status.VALIDATE_CHECKSUM.value, Status.VALIDATE_UPLOAD.value)
+        md5_hexdigest = self.irods_md5.hexdigest()
+        logger.info(f"{'--':<20}Buffer MD5: {md5_hexdigest}")
+
+        if resp.status_code == HTTPStatus.CREATED.value:
+            md5_zenodo = resp.json()['checksum']
+            logger.info(f"{'--':<20}Zenodo MD5: {md5_zenodo}")
+            if md5_zenodo == md5_hexdigest:
+                logger.info(f"{'--':<30}Checksum MD5 match: True")
+                self.irods_client.update_metadata_state(Status.VALIDATE_UPLOAD.value, Status.FINALIZE.value)
+            else:
+                logger.error(f"{'--':<30}Checksum MD5 match: False")
+                self.irods_client.update_metadata_state(Status.VALIDATE_UPLOAD.value, Status.UPLOAD_CORRUPTED.value)
+        else:
+            logger.error(f"{'--':<30}{resp.content.decode('utf-8')}")
+            self.irods_client.update_metadata_state(Status.VALIDATE_UPLOAD.value, Status.UPLOAD_FAILED.value)
+
+    def _final_report(self):
+        url = f"{self.host}/deposit/{self.deposition_id}"
+        self.irods_client.add_metadata('externalPID', url, "Zenodo")
+        self.irods_client.update_metadata_state(Status.FINALIZE.value, Status.EXPORTED.value)
+        time.sleep(5)
+        self.irods_client.remove_metadata(Status.ATTRIBUTE.value, Status.EXPORTED.value)
+        logger.info(f"{'--':<10}Export Done")

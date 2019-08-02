@@ -21,7 +21,7 @@ class DataverseExporter:
             self.do_export("7151", data['delete'], data['restrict'], data['dataexport'], data['restrict_list'])
         except:
             print("Unexpected error:", sys.exc_info()[0])
-            self.session_cleanup()
+            self.irods_client.session_cleanup()
             raise
 
     def do_export(self, alias, delete=False, restrict=False, data_export=False, restrict_list=""):
@@ -32,7 +32,9 @@ class DataverseExporter:
 
         # Dataverse
         logger.info("Dataverse")
-        self.exporter_client = DataverseClient(os.environ['DATAVERSE_HOST'], os.environ['DATAVERSE_TOKEN'], alias, self.irods_client)
+        self.exporter_client = DataverseClient(os.environ['DATAVERSE_HOST'],
+                                               os.environ['DATAVERSE_TOKEN'],
+                                               alias, self.irods_client)
         self.exporter_client.create_dataset(md, data_export)
         if data_export:
             self.exporter_client.import_files(delete, restrict, restrict_list)
@@ -40,17 +42,3 @@ class DataverseExporter:
         # Cleanup
         self.irods_client.rulemanager.rule_close()
         self.irods_client.session.cleanup()
-
-    def session_cleanup(self):
-        logger.error("An error occurred during the upload")
-        logger.error("Clean up exporterState AVU")
-
-        self.irods_client.remove_metadata_state('exporterState', 'in-queue-for-export')
-        self.irods_client.remove_metadata_state('exporterState', 'prepare-export')
-        self.irods_client.remove_metadata_state('exporterState', 'do-export')
-        self.irods_client.remove_metadata_state('exporterState', self.exporter_client.last_export)
-        logger.error("exporterState: " + self.exporter_client.last_export)
-
-        logger.error("Call rule closeProjectCollection")
-        self.irods_client.rulemanager.rule_close()
-

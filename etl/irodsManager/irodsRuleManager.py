@@ -12,13 +12,11 @@ logger = logging.getLogger('iRODS to Dataverse')
 
 
 class RuleManager:
-    """
-    Manager to execute iRods rules
+    """Manager to execute iRods rules
     """
 
     def __init__(self, session, collection):
         """
-        :param path: collection path, where to apply the rules
         :param session: iRODS connection session
         :param collection: collection irodsManager data object
         """

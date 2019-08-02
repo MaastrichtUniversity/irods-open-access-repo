@@ -34,7 +34,7 @@ def collection_etl(ch, method, properties, body):
                                    password=os.environ['IRODS_PASS'], zone='nlmumc')
         irods_client.prepare(path)
         logger.info(f" [x] Create {data['repository']} exporter worker")
-        class_name = data['repository']+'Exporter'
+        class_name = data['repository'] + 'Exporter'
         exporter = globals()[class_name]()
         exporter.init_export(irods_client, data)
         ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -68,7 +68,9 @@ def main(channel, retry_counter=None):
         logger.info(' [x] Waiting for queue repository.collection-etl')
         channel.start_consuming()
     except pika.exceptions.ConnectionClosed:
-        logger.error("Failed with pika.exceptions.ConnectionClosed: Sleeping for 60 secs before next try. This was try " + str(retry_counter))
+        logger.error(
+            "Failed with pika.exceptions.ConnectionClosed: Sleeping for 60 secs before next try."
+            + " This was try " + str(retry_counter))
         time.sleep(60)
         new_connection = pika.BlockingConnection(parameters)
         new_ch = new_connection.channel()
