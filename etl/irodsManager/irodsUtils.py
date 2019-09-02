@@ -1,5 +1,6 @@
 import hashlib
 import io
+import re
 import zipfile
 import logging
 import datetime
@@ -25,8 +26,7 @@ if logging.getLogger().isEnabledFor(logging.DEBUG):
 
 
 class IteratorAsBinaryFile(object):
-    """
-    Custom bundle iterator for streaming.
+    """Custom bundle iterator for streaming.
     <requests_toolbelt.streaming_iterator>
     """
 
@@ -35,9 +35,7 @@ class IteratorAsBinaryFile(object):
         self.size = int(size)
         self.md5 = md5
         if self.size < 0:
-            raise ValueError(
-                'The size of the upload must be a positive integer'
-            )
+            raise ValueError('The size of the upload must be a positive integer')
 
         #: Attribute that requests will check to determine the length of the
         #: body. See bug #80 for more details
@@ -85,8 +83,7 @@ class IteratorAsBinaryFile(object):
 
 
 class UnseekableStream(RawIOBase):
-    """
-    Custom raw buffer for streaming.
+    """Custom raw buffer for streaming.
     """
 
     def __init__(self):
@@ -108,14 +105,13 @@ class UnseekableStream(RawIOBase):
 
 
 def archive_generator_faker(func, stream, bar, irods_md5):
-    """
-    Yield the raw buffer for streaming.
+    """Go through the zip generator and return the size.
 
-    :param irods_md5:
+    :param irods_md5: md5 checksum hash
     :param func: archive buffer iterator
     :param stream: raw buffer stream
     :param bar: progress monitor
-    :return:
+    :return: int - size
     """
 
     try:
@@ -144,8 +140,7 @@ def archive_generator_faker(func, stream, bar, irods_md5):
 
 
 def archive_generator(func, stream, bar):
-    """
-    Yield the raw buffer for streaming.
+    """Yield the raw buffer for streaming.
 
     :param func: archive buffer iterator
     :param stream: raw buffer stream
@@ -177,11 +172,10 @@ def archive_generator(func, stream, bar):
 
 
 def zip_collection(irods_client, stream, upload_success,  restrict_list):
-    """
-    Create a generator to zip the collection.
-    Also request the iRODS sha256 chksums and compare it to the buffer.
+    """Create a generator to zip the collection.
+    Also calculate the iRODS sha256 chksums .
 
-    :param irods_client: list of files path
+    :param irods_client: iRODS client manager
     :param UnseekableStream stream: raw buffer stream
     :param list restrict_list: list of files path
     :param dict upload_success: {file_path: hash_key}
@@ -200,8 +194,9 @@ def zip_collection(irods_client, stream, upload_success,  restrict_list):
 
             irods_sha = hashlib.sha256()
             buff = session.data_objects.open(file.path, 'r')
-
-            zip_info = zipfile.ZipInfo(min_path)
+            root_folder_name = irods_client.imetadata.title.replace(" ", "_")
+            zip_file_path = re.sub(r"/nlmumc/projects/P[0-9]{9}/C[0-9]{9}", root_folder_name, file.path)
+            zip_info = zipfile.ZipInfo(zip_file_path)
             zip_info.file_size = file.size
             zip_info.compress_type = zipfile.ZIP_DEFLATED
             with zip_buffer.open(zip_info, mode='w') as dest:
@@ -219,15 +214,14 @@ def zip_collection(irods_client, stream, upload_success,  restrict_list):
 
 
 def get_zip_generator(irods_client, upload_success, irods_md5, restrict_list, size) -> IteratorAsBinaryFile:
-    """
-    Bundle an iRODS collection into an uncompressed zip buffer.
+    """Bundle an iRODS collection into a compressed zip buffer.
     Return the zip buffer iterator.
 
-    :param irods_client: iRODS collection to zip
+    :param irods_client: iRODS client manager
     :param dict upload_success: {file_path: hash_key}
-    :param list restrict_list: RuleManager to call chksums rule
-    :param irods_md5: hashlib.md5()
-    :param size:
+    :param list restrict_list: list of file's path to include in the zip
+    :param irods_md5: hashlib.md5() object to calculate the md5 checksum
+    :param int size: estimated zip size
     :return: zip buffer iterator
     """
 
@@ -240,15 +234,14 @@ def get_zip_generator(irods_client, upload_success, irods_md5, restrict_list, si
 
 
 def zip_generator_faker(irods_client, upload_success, irods_md5, restrict_list) -> int:
-    """
-    Bundle an iRODS collection into an uncompressed zip buffer.
-    Return the zip buffer iterator.
+    """Fake the zip creation and estimate the size of the compressed zip buffer.
+    Return the estimated size.
 
-    :param irods_client: iRODS collection to zip
+    :param irods_client: iRODS client manager
     :param dict upload_success: {file_path: hash_key}
-    :param list restrict_list: RuleManager to call chksums rule
-    :param irods_md5: hashlib.md5()
-    :return: zip buffer iterator
+    :param list restrict_list: list of file's path to include in the zip
+    :param irods_md5: hashlib.md5() object to calculate the md5 checksum
+    :return: estimated zip size
     """
 
     stream = UnseekableStream()
@@ -260,8 +253,7 @@ def zip_generator_faker(irods_client, upload_success, irods_md5, restrict_list) 
 
 
 def bag_collection(irods_client, stream, upload_success):
-    """
-    Create a generator to zip the collection.
+    """Create a generator to zip the collection.
     Also request the iRODS sha256 chksums and compare it to the buffer.
 
     :param irods_client : list of files path
@@ -446,8 +438,7 @@ Payload-Oxum: {oxum}
 
 
 def bag_generator_faker(irods_client, upload_success, irods_md5):
-    """
-    Bundle an iRODS collection into an uncompressed zip buffer.
+    """Bundle an iRODS collection into a compressed zip buffer.
     Return the zip buffer iterator.
 
     :param irods_client: iRODS collection to zip
@@ -465,8 +456,7 @@ def bag_generator_faker(irods_client, upload_success, irods_md5):
 
 
 def get_bag_generator(irods_client, upload_success, irods_md5, size) -> IteratorAsBinaryFile:
-    """
-    Bundle an iRODS collection into an uncompressed zip buffer.
+    """Bundle an iRODS collection into a compressed zip buffer.
     Return the zip buffer iterator.
 
     :param irods_client: iRODS collection to zip
@@ -531,7 +521,7 @@ class ExporterClient:
 
 
 class irodsMetadata:
-    """Store all metadata from iRODS
+    """Store all metadata (AVUs and metadata.xml) from an iRODS Collection
     """
 
     def __init__(self):
@@ -541,8 +531,8 @@ class irodsMetadata:
         self.date = None
         self.pid = None
 
-        self.byteSize = None
-        self.numFiles = None
+        self.bytesize = None
+        self.numfiles = None
 
         self.tissue = None
         self.technology = None
@@ -553,3 +543,4 @@ class irodsMetadata:
         self.articles = None
 
         self.dataset_json = None
+        self.depositor = None

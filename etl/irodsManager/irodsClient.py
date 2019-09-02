@@ -25,6 +25,7 @@ class irodsClient:
         self.coll = None
         self.imetadata = irodsMetadata()
         self.rulemanager = None
+        self.repository = None
 
     def connect(self):
         logger.info("--\t Connect to iRODS")
@@ -34,17 +35,21 @@ class irodsClient:
                                     password=self.password,
                                     zone=self.zone)
 
-    def prepare(self, path):
+    def prepare(self, path, repository):
         logger.info("iRODS")
+
         self.connect()
         self.coll = self.session.collections.get(path)
+        self.repository = repository
         self.read_collection_metadata()
         self.rulemanager = RuleManager(self.session, self.coll)
         self.rulemanager.rule_open()
+
         # clear all exporterState AVU values and re-add in-queue-for-export
         # in case of remaining failed report AVUs like: upload-failed , failed-dataset-creation etc ..
-        self.coll.metadata['exporterState'] = iRODSMeta('exporterState', ExporterState.IN_QUEUE_FOR_EXPORT.value)
-        self.update_metadata_state(ExporterState.IN_QUEUE_FOR_EXPORT.value, ExporterState.CREATE_EXPORTER.value)
+        new_status = f"{repository}:{ExporterState.IN_QUEUE_FOR_EXPORT.value}"
+        self.coll.metadata['exporterState'] = iRODSMeta('exporterState', new_status)
+        self.update_metadata_status(ExporterState.IN_QUEUE_FOR_EXPORT.value, ExporterState.CREATE_EXPORTER.value)
 
     @staticmethod
     def read_tag(root, tag):
@@ -84,7 +89,7 @@ class irodsClient:
     def read_collection_metadata(self):
         logger.info("--\t Read collection metadata")
         for x in self.coll.metadata.items():
-            self.imetadata.__dict__.update({x.name.lower(): x.value})
+            self.imetadata.__dict__.update({x.name.lower().replace('dcat:', ''): x.value})
 
         logger.info("--\t Parse collection metadata.xml")
         meta_xml = self.coll.path + "/metadata.xml"
@@ -105,16 +110,18 @@ class irodsClient:
 
         self.imetadata.articles = self.read_tag_list(root, "article")
 
-    def update_metadata_state(self, old_value, new_value, key=ExporterState.ATTRIBUTE.value):
+    def update_metadata_status(self, old_value, new_value, key=ExporterState.ATTRIBUTE.value):
+        old_status = f"{self.repository}:{old_value}"
+        new_status = f"{self.repository}:{new_value}"
         try:
             if old_value != '' and new_value != '':
-                self.coll.metadata.remove(key, old_value)
+                self.coll.metadata.remove(key, old_status)
         except iRODSException as error:
             logger.error(f"{key} : {old_value}  {error}")
 
         try:
             if new_value != '':
-                self.coll.metadata.add(key, new_value)
+                self.coll.metadata.add(key, new_status)
         except iRODSException as error:
             logger.error(f"{key} : {new_value}  {error}")
 
@@ -134,7 +141,7 @@ class irodsClient:
         except iRODSException as error:
             logger.error(f"{key} : {value}  {error}")
 
-    def session_cleanup(self):
+    def status_cleanup(self):
         logger.error("An error occurred during the upload")
         logger.error("Clean up exporterState AVU")
 

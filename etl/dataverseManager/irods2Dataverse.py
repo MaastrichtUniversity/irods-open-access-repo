@@ -18,16 +18,21 @@ class DataverseExporter:
     def init_export(self, irods_client, data):
         self.irods_client = irods_client
         try:
-            self.do_export("7151", data['delete'], data['restrict'], data['dataexport'], data['restrict_list'])
+            self.do_export(data['dataverse_alias'], data['depositor'],
+                           data['delete'], data['restrict'],
+                           data['data_export'], data['restrict_list'])
         except:
+            # Warning: catch all the unexpected error during export to perform clean-up
             print("Unexpected error:", sys.exc_info()[0])
-            self.irods_client.session_cleanup()
+            # Remove all temporary progress export AVU
+            self.irods_client.status_cleanup()
+            # Still raise the error
             raise
 
-    def do_export(self, alias, delete=False, restrict=False, data_export=False, restrict_list=""):
+    def do_export(self, alias, depositor, delete=False, restrict=False, data_export=False, restrict_list=""):
         # Metadata
         logger.info("Metadata")
-        self.metadata_mapper = MetadataMapper(self.irods_client.imetadata)
+        self.metadata_mapper = MetadataMapper(self.irods_client.imetadata, depositor)
         md = self.metadata_mapper.read_metadata()
 
         # Dataverse

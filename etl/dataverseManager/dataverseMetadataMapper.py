@@ -10,13 +10,13 @@ self.protocol = None
 
 
 class MetadataMapper:
+    """Map iRODS metadata to the Open Access Repository metadata format
     """
-    Map iRODS metadata to the Open Access Repository metadata format
-    """
-    def __init__(self, imetadata):
+    def __init__(self, imetadata, depositor):
         self.imetadata = imetadata
         self.dataset_json = None
         self.md = None
+        self.imetadata.depositor = depositor
 
     def read_metadata(self):
         logger.info("--\t Map metadata")
@@ -29,7 +29,11 @@ class MetadataMapper:
         pid = self.imetadata.pid.split("/")
         self.update_pid(self.md, pid[0], pid[1])
 
-        self.add_author(self.imetadata.creator)
+        author = self.imetadata.creator.split("@")[0]
+        self.add_author(author)
+
+        url = f"https://hdl.handle.net/{self.imetadata.pid}"
+        self.add_alternative_url(url)
 
         if self.imetadata.description is None:
             self.add_description("")
@@ -265,6 +269,17 @@ class MetadataMapper:
                 "value": uri
             }
         }
+        return new
+
+    def add_alternative_url(self, url, up=True):
+        new = {
+            "multiple": False,
+            "typeClass": "primitive",
+            "typeName": "alternativeURL",
+            "value": url
+        }
+        if up:
+            self.update_fields(new)
         return new
 
     def add_publications(self, publications, up=True):
