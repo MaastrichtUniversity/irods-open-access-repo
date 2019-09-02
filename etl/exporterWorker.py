@@ -8,10 +8,10 @@ import logging
 import pika
 import json
 
-from zenodoManager.irods2Zenodo import ZenodoExporter
-from figshareManager.irods2Figshare import FigshareExporter
+# from zenodoManager.irods2Zenodo import ZenodoExporter
+# from figshareManager.irods2Figshare import FigshareExporter
+# from easyManager.irods2Easy import EasyExporter
 from dataverseManager.irods2Dataverse import DataverseExporter
-from easyManager.irods2Easy import EasyExporter
 from irodsManager.irodsClient import irodsClient
 
 log_level = os.environ['LOG_LEVEL']
