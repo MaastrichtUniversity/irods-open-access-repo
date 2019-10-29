@@ -99,6 +99,7 @@ class DataverseClient(ExporterClient):
                     self.rulemanager.rule_deletion(self.upload_success)
                 self._final_report()
                 self.email_confirmation()
+                self.submit_dataset_for_review()
         else:
             logger.error(f"{'--':<20}Dataset unknown")
             self.irods_client.update_metadata_status(Status.CREATE_DATASET.value, Status.DATASET_UNKNOWN.value)
@@ -197,7 +198,6 @@ class DataverseClient(ExporterClient):
         user = os.environ['DH_MAILER_USERNAME']
         pwd = os.environ['DH_MAILER_PASSWORD']
         from_address = "datahub@maastrichtuniversity.nl"
-        to_address = os.environ['DH_MAILER_TO_ADDRESS'].split(",")
 
         endpoint = "http://" + host + "/email/send"
 
@@ -216,25 +216,6 @@ class DataverseClient(ExporterClient):
             "EXTERNAL_PID": self.dataset_pid,
             "DATASET_URL": self.dataset_url
         }
-
-        data_curator = {
-            "language": "en",
-            "templateName": "OpenAccess_export",
-            "templateOptions": template_options,
-            "emailOptions": {
-                "from": from_address,
-                "to": ", ".join(to_address),
-            }
-        }
-
-        # Post the e-mail confirmation to the dataset curator
-        response = requests.post(endpoint, json=data_curator, auth=(user, pwd))
-
-        if response.status_code == HTTPStatus.OK.value:
-            logger.info(f"Reporting e-mail sent to " + ','.join(to_address))
-        else:
-            logger.error(response.status_code)
-            logger.error(response.content)
 
         data_user = {
             "language": "en",
@@ -255,3 +236,21 @@ class DataverseClient(ExporterClient):
             logger.error(resp_user.status_code)
             logger.error(resp_user.content)
 
+    def submit_dataset_for_review(self):
+        logger.info(f"{'--':<10}Dataset - request review")
+
+        self.irods_client.update_metadata_status(Status.CREATE_EXPORTER.value, Status.CREATE_DATASET.value)
+        url = f"{self.host}/api/datasets/:persistentId/submitForReview?persistentId={self.dataset_pid}"
+
+        resp = requests.post(
+            url,
+            headers={'Content-type': 'application/json',
+                     'X-Dataverse-key': self.token
+                     },
+        )
+        if resp.status_code == HTTPStatus.OK.value:
+            logger.info(f"Dataset have been submitted for review: {self.dataset_url}")
+        else:
+            logger.error(f"{'--':<20}Create dataset failed")
+            logger.error(resp.status_code)
+            logger.error(resp.content)

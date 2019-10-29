@@ -21,7 +21,6 @@ services:
       DATAVERSE_HOST: https://act.dataverse.nl
       EASY_HOST : https://act.easy.dans.knaw.nl
       DH_MAILER_HOST: mailer
-      DH_MAILER_TO_ADDRESS: mail@mailer.com
       DH_MAILER_USERNAME: user
       DH_MAILER_PASSWORD: password
       LOG_LEVEL: INFO
