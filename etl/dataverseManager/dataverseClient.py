@@ -239,7 +239,6 @@ class DataverseClient(ExporterClient):
     def submit_dataset_for_review(self):
         logger.info(f"{'--':<10}Dataset - request review")
 
-        self.irods_client.update_metadata_status(Status.CREATE_EXPORTER.value, Status.CREATE_DATASET.value)
         url = f"{self.host}/api/datasets/:persistentId/submitForReview?persistentId={self.dataset_pid}"
 
         resp = requests.post(
