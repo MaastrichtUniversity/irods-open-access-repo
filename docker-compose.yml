@@ -20,7 +20,7 @@ services:
       IRODS_PASS: irods
       DATAVERSE_HOST: https://act.dataverse.nl
       EASY_HOST : https://act.easy.dans.knaw.nl
-      DH_MAILER_HOST: mailer
+      DH_MAILER_HOST: mailer.dh.local
       DH_MAILER_USERNAME: user
       DH_MAILER_PASSWORD: password
       LOG_LEVEL: INFO
