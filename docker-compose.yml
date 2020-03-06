@@ -18,7 +18,7 @@ services:
       IRODS_HOST: irods.dh.local
       IRODS_USER: rods
       IRODS_PASS: irods
-      DATAVERSE_HOST: https://dataverse.nl
+      DATAVERSE_HOST: https://demo.dataverse.nl
       EASY_HOST : https://act.easy.dans.knaw.nl
       DH_MAILER_HOST: mailer.dh.local
       DH_MAILER_USERNAME: user

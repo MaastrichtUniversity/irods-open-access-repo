@@ -193,6 +193,7 @@ def zip_collection(irods_client, stream, upload_success,  restrict_list):
                 continue
 
             irods_sha = hashlib.sha256()
+            irods_md5 = hashlib.md5()
             buff = session.data_objects.open(file.path, 'r')
             root_folder_name = irods_client.imetadata.title.replace(" ", "_")
             zip_file_path = re.sub(r"/nlmumc/projects/P[0-9]{9}/C[0-9]{9}", root_folder_name, file.path)
@@ -203,11 +204,16 @@ def zip_collection(irods_client, stream, upload_success,  restrict_list):
                 for chunk in iter(lambda: buff.read(BLOCK_SIZE), b''):
                     dest.write(chunk)
                     irods_sha.update(chunk)
+                    irods_md5.update(chunk)
                     yield
             buff.close()
 
             sha_hexdigest = irods_sha.hexdigest()
-            upload_success.update({file.path: sha_hexdigest})
+            md5_hexdigest = irods_md5.hexdigest()
+            # index 0 -> sha_hexdigest
+            # index 1 -> md5_hexdigest
+            hexdigest_list = [sha_hexdigest, md5_hexdigest]
+            upload_success.update({file.path: hexdigest_list})
 
     zip_buffer.close()
     yield

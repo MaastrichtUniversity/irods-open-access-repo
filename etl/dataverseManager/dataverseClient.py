@@ -48,7 +48,7 @@ class DataverseClient(ExporterClient):
         self.restrict = False
         self.restrict_list = []
 
-        self.zip_name = irodsclient.imetadata.title
+        self.zip_name = irodsclient.imetadata.title + ".zip"
 
     def create_dataset(self, md, data_export=False):
         logger.info(f"{'--':<10}Dataset - request creation")
@@ -148,8 +148,8 @@ class DataverseClient(ExporterClient):
         count = 0
         validated = False
         for k in self.upload_success.keys():
-            if self.upload_success[k] == chksums[k]:
-                self.upload_success.update({k: True})
+            # index 0 -> sha_hexdigest
+            if self.upload_success[k][0] == chksums[k]:
                 count += 1
         if count == len(self.upload_success):
             validated = True
@@ -163,22 +163,26 @@ class DataverseClient(ExporterClient):
     def _validate_upload(self, resp):
         logger.info(f"{'--':<10}Validate upload")
 
-        validated = False
         self.irods_client.update_metadata_status(Status.VALIDATE_CHECKSUM.value, Status.VALIDATE_UPLOAD.value)
-        md5_hexdigest = self.irods_md5.hexdigest()
-        logger.info(f"{'--':<20}Buffer MD5: {md5_hexdigest}")
-
+        count = 0
+        validated = False
         if resp.status_code == HTTPStatus.OK.value:
-            md5_dataverse = resp.json()['data']['files'][0]['dataFile']['md5']
-            logger.info(f"{'--':<20}Dataverse MD5: {md5_dataverse}")
-            if md5_dataverse == md5_hexdigest:
+            for file_json in resp.json()['data']['files']:
+                # "space character" in the collection title are replace to "_" during the zipping process
+                # So we have to reverse it now
+                root_folder_name = self.irods_client.imetadata.title.replace(" ", "_")
+                # Filter out the collection title from directoryLabel
+                collection_folder = file_json['directoryLabel'].replace(root_folder_name, "")
+                # Restore file path to match irods absolute path
+                file_path = self.irods_client.coll.path + collection_folder + "/" + file_json['dataFile']['filename']
+
+                # index 1 -> md5_hexdigest
+                if file_json['dataFile']['md5'] == self.upload_success[file_path][1]:
+                    count += 1
+            if count == len(self.upload_success):
                 validated = True
-                logger.info(f"{'--':<30}Checksum MD5 validated")
+                logger.info(f"{'--':<20}iRODS & Dataverse MD5 checksum: validated")
                 self.irods_client.update_metadata_status(Status.VALIDATE_UPLOAD.value, Status.FINALIZE.value)
-            else:
-                logger.error(f"{'--':<30}Checksum MD5 match: False")
-                logger.error(f"{'--':<30}{resp.content.decode('utf-8')}")
-                self.irods_client.update_metadata_status(Status.VALIDATE_UPLOAD.value, Status.UPLOAD_CORRUPTED.value)
         else:
             logger.error(f"{'--':<30}{resp.content.decode('utf-8')}")
             self.irods_client.update_metadata_status(Status.VALIDATE_UPLOAD.value, Status.UPLOAD_FAILED.value)

@@ -87,7 +87,7 @@ class irodsClient:
         return [node_dict]
 
     def read_collection_metadata(self):
-        logger.info("--\t Read collection metadata")
+        logger.info("--\t Read collection AVU")
         for x in self.coll.metadata.items():
             self.imetadata.__dict__.update({x.name.lower().replace('dcat:', ''): x.value})
 
