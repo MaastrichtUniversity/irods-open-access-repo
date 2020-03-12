@@ -77,6 +77,7 @@ class DataverseClient(ExporterClient):
             self.irods_client.update_metadata_status(Status.CREATE_DATASET.value, Status.FINALIZE.value)
             self._final_report()
             self.email_confirmation()
+            self.submit_dataset_for_review()
 
     def import_files(self, deletion=False, restrict=False, restrict_list=''):
         self.deletion = deletion
