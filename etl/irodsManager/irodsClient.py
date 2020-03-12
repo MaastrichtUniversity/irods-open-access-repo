@@ -141,13 +141,14 @@ class irodsClient:
         except iRODSException as error:
             logger.error(f"{key} : {value}  {error}")
 
-    def status_cleanup(self):
+    def status_cleanup(self, repository):
         logger.error("An error occurred during the upload")
         logger.error("Clean up exporterState AVU")
 
         # exporter client crashed, clean all exporterState AVUs
         for state in ExporterState:
-            self.remove_metadata('exporterState', state.value)
+            new_status = f"{repository}:{state.value}"
+            self.remove_metadata('exporterState', new_status)
 
         logger.error("Call rule closeProjectCollection")
         self.rulemanager.rule_close()

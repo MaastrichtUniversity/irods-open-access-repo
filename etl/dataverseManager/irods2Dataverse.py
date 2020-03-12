@@ -25,7 +25,7 @@ class DataverseExporter:
             # Warning: catch all the unexpected error during export to perform clean-up
             print("Unexpected error:", sys.exc_info()[0])
             # Remove all temporary progress export AVU
-            self.irods_client.status_cleanup()
+            self.irods_client.status_cleanup(self.repository)
             # Still raise the error
             raise
 
