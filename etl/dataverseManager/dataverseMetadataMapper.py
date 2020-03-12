@@ -26,14 +26,14 @@ class MetadataMapper:
 
         self.md = self.dataset_json['datasetVersion']
 
-        pid = self.imetadata.pid.split("/")
-        self.update_pid(self.md, pid[0], pid[1])
-
         author = self.imetadata.creator.split("@")[0]
         self.add_author(author)
 
-        url = f"https://hdl.handle.net/{self.imetadata.pid}"
-        self.add_alternative_url(url)
+        if self.imetadata.pid is None:
+            logger.error(f"{'--':<20}PID invalid")
+        else:
+            url = f"https://hdl.handle.net/{self.imetadata.pid}"
+            self.add_alternative_url(url)
 
         if self.imetadata.description is None:
             self.add_description("")
@@ -97,12 +97,6 @@ class MetadataMapper:
         logger.debug(json.dumps(self.dataset_json, indent=4))
 
         return self.dataset_json
-
-    @staticmethod
-    def update_pid(md, authority, identifier, hdl="hdl"):
-        md["protocol"] = hdl
-        md["authority"] = authority
-        md["identifier"] = identifier
 
     def update_fields(self, new):
         fields = self.md["metadataBlocks"]["citation"]["fields"]
