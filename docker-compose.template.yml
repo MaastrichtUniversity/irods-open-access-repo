@@ -2,15 +2,17 @@ version: '2'
 services:
   irods-exporter-worker:
     build: docker/
-    hostname: irods-exporter-worker
     networks:
-      - default
-      - corpus_default
-      - common_default
+      corpus_default:
+        aliases:
+          - open-access-worker.dh.local
+      common_default:
+        aliases:
+          - open-access-worker.dh.local
     volumes:
       - ./etl:/opt/app
     env_file:
-      - ./secrets.cfg    
+      - ./secrets.cfg  # Using ONLY DATAVERSE_TOKEN. Can also be added as env var below
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: user
@@ -18,13 +20,12 @@ services:
       IRODS_HOST: irods.dh.local
       IRODS_USER: rods
       IRODS_PASS: irods
-      DATAVERSE_HOST: https://demo.dataverse.nl
-      EASY_HOST : https://act.easy.dans.knaw.nl
+      DATAVERSE_HOST: https://dataverse.nl
       DH_MAILER_HOST: mailer.dh.local
       DH_MAILER_USERNAME: user
       DH_MAILER_PASSWORD: password
       LOG_LEVEL: INFO
-      LOGSTASH_TAGS: COLLECTION_WORKER
+      LOGSTASH_TAGS: OPEN_ACCESS_WORKER
 networks:
   common_default:
     external: true
