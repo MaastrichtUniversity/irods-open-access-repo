@@ -8,6 +8,7 @@ import os
 from irodsManager.irodsUtils import get_zip_generator, zip_generator_faker, ExporterClient, ExporterState as Status
 
 from requests_toolbelt.multipart.encoder import MultipartEncoder
+from requests.exceptions import ProxyError
 from http import HTTPStatus
 from multiprocessing import Pool
 
@@ -56,28 +57,32 @@ class DataverseClient(ExporterClient):
         self.irods_client.update_metadata_status(Status.CREATE_EXPORTER.value, Status.CREATE_DATASET.value)
         url = f"{self.host}/api/dataverses/{self.alias}/datasets/"
 
-        resp = requests.post(
-            url,
-            data=json.dumps(md),
-            headers={'Content-type': 'application/json',
-                     'X-Dataverse-key': self.token
-                     },
-        )
-        if resp.status_code == HTTPStatus.CREATED.value:
-            self.dataset_pid = resp.json()['data']['persistentId']
-            self.dataset_url = f"{self.host}/dataset.xhtml?persistentId={self.dataset_pid}&version=DRAFT"
-            self.dataset_deposit_url = f"{self.host}/api/datasets/:persistentId/add?persistentId={self.dataset_pid}"
-            logger.info(f"{'--':<20}Dataset created with pid: {self.dataset_pid}")
-        else:
-            logger.error(f"{'--':<20}Create dataset failed")
-            logger.error(resp.content)
-            self.irods_client.update_metadata_status(Status.CREATE_DATASET.value, Status.CREATE_DATASET_FAILED.value)
+        try:
+            resp = requests.post(
+                url,
+                data=json.dumps(md),
+                headers={'Content-type': 'application/json',
+                         'X-Dataverse-key': self.token
+                         },
+            )
+            if resp.status_code == HTTPStatus.CREATED.value:
+                self.dataset_pid = resp.json()['data']['persistentId']
+                self.dataset_url = f"{self.host}/dataset.xhtml?persistentId={self.dataset_pid}&version=DRAFT"
+                self.dataset_deposit_url = f"{self.host}/api/datasets/:persistentId/add?persistentId={self.dataset_pid}"
+                logger.info(f"{'--':<20}Dataset created with pid: {self.dataset_pid}")
+            else:
+                logger.error(f"{'--':<20}Create dataset failed")
+                logger.error(resp.content)
+                self.irods_client.update_metadata_status(Status.CREATE_DATASET.value, Status.CREATE_DATASET_FAILED.value)
 
-        if not data_export and resp.status_code == HTTPStatus.CREATED.value:
-            self.irods_client.update_metadata_status(Status.CREATE_DATASET.value, Status.FINALIZE.value)
-            self._final_report()
-            self.email_confirmation()
-            self.submit_dataset_for_review()
+            if not data_export and resp.status_code == HTTPStatus.CREATED.value:
+                self.irods_client.update_metadata_status(Status.CREATE_DATASET.value, Status.FINALIZE.value)
+                self._final_report()
+                self.email_confirmation()
+                self.submit_dataset_for_review()
+        except ProxyError:
+            logger.error(self.host + " cannot be reached")
+            self.irods_client.update_metadata_status(Status.CREATE_DATASET.value, Status.CREATE_DATASET_FAILED.value)
 
     def import_files(self, deletion=False, restrict=False, restrict_list=''):
         self.deletion = deletion
