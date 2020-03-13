@@ -13,7 +13,7 @@ Available repositories:
 For development purposes this repository is being run from `docker-dev`. The `docker-compose.yml` there is being
 used to run this repository.
 
-The `docker-compose.yml` available here is provided as an example. You are encouraged to keep it up to date.  
+The `docker-compose.template.yml` available here is provided as an example. You are encouraged to keep it up to date.  
 
 ## Production
 
