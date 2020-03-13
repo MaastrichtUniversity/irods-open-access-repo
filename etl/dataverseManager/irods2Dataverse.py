@@ -15,6 +15,15 @@ class DataverseExporter:
         self.metadata_mapper = None
         self.exporter_client = None
 
+        if "DATAVERSE_HOST" not in os.environ:
+            logger.error("DATVERSE_HOST is missing. Please add it to the docker-compose file")
+            exit()
+
+        if "DATAVERSE_TOKEN" not in os.environ:
+            logger.error("DATVERSE_TOKEN is missing. Please add it to the irods.secrets.cfg file")
+            exit()
+
+
     def init_export(self, irods_client, data):
         self.irods_client = irods_client
         try:
