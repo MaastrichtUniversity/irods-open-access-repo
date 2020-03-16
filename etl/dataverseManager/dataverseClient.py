@@ -4,6 +4,7 @@ import logging
 import requests
 import time
 import os
+import re
 
 from irodsManager.irodsUtils import get_zip_generator, zip_generator_faker, ExporterClient, ExporterState as Status
 
@@ -157,10 +158,21 @@ class DataverseClient(ExporterClient):
         chksums = self.pool_result.get()
         count = 0
         validated = False
+        # Temporary dictionary to store the absolute path with specials characters filtered out
+        # Cannot update an existing dictionary while looping through its keys tiem
+        tmp_dict = {}
         for k in self.upload_success.keys():
             # index 0 -> sha_hexdigest
             if self.upload_success[k][0] == chksums[k]:
                 count += 1
+                # Get value
+                hexdigest_list = self.upload_success[k]
+                # Filter out specials characters in the key
+                filtered_path = re.sub(r"[\\:\*\?\"<>\|;#]", "_", k)
+                # Add key-value pair to temporary dictionary
+                tmp_dict[filtered_path] = hexdigest_list
+        # Replace upload_success with the filtered out key items
+        self.upload_success = tmp_dict
         if count == len(self.upload_success):
             validated = True
             logger.info(f"{'--':<20}iRODS & buffer SHA-256 checksum: validated")
