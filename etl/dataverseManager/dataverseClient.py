@@ -81,7 +81,7 @@ class DataverseClient(ExporterClient):
                 self.email_confirmation()
                 self.submit_dataset_for_review()
         except ProxyError:
-            logger.error(self.host + " cannot be reached")
+            logger.error(self.host + " cannot be reached. Create dataset failed")
             self.irods_client.update_metadata_status(Status.CREATE_DATASET.value, Status.CREATE_DATASET_FAILED.value)
 
     def import_files(self, deletion=False, restrict=False, restrict_list=''):
@@ -134,13 +134,17 @@ class DataverseClient(ExporterClient):
                     'file': (self.zip_name, bundle_iterator)
                     }
         )
-        resp = requests.post(
-            self.dataset_deposit_url,
-            data=multipart_encoder,
-            headers={'Content-Type': multipart_encoder.content_type,
-                     'X-Dataverse-key': self.token
-                     },
-        )
+        try:
+            resp = requests.post(
+                self.dataset_deposit_url,
+                data=multipart_encoder,
+                headers={'Content-Type': multipart_encoder.content_type,
+                         'X-Dataverse-key': self.token
+                         },
+            )
+        except ProxyError:
+            logger.error(self.host + " cannot be reached. Upload data failed")
+            self.irods_client.update_metadata_status(Status.UPLOAD_ZIPPED_COLLECTION.value, Status.UPLOAD_FAILED.value)
 
         return resp
 
@@ -238,7 +242,10 @@ class DataverseClient(ExporterClient):
         }
 
         # Post the e-mail confirmation to the user
-        resp_user = requests.post(endpoint, json=data_user, auth=(user, pwd))
+        try:
+            resp_user = requests.post(endpoint, json=data_user, auth=(user, pwd))
+        except ProxyError:
+            logger.error(endpoint + " cannot be reached. Send e-mail confirmation failed")
 
         if resp_user.status_code == HTTPStatus.OK.value:
             logger.info(f"Reporting e-mail confirmation sent to {self.irods_client.imetadata.depositor}")
@@ -251,15 +258,19 @@ class DataverseClient(ExporterClient):
 
         url = f"{self.host}/api/datasets/:persistentId/submitForReview?persistentId={self.dataset_pid}"
 
-        resp = requests.post(
-            url,
-            headers={'Content-type': 'application/json',
-                     'X-Dataverse-key': self.token
-                     },
-        )
-        if resp.status_code == HTTPStatus.OK.value:
-            logger.info(f"Dataset have been submitted for review: {self.dataset_url}")
-        else:
-            logger.error(f"{'--':<20}Create dataset failed")
-            logger.error(resp.status_code)
-            logger.error(resp.content)
+        try:
+            resp = requests.post(
+                url,
+                headers={'Content-type': 'application/json',
+                         'X-Dataverse-key': self.token
+                         },
+            )
+            if resp.status_code == HTTPStatus.OK.value:
+                logger.info(f"Dataset have been submitted for review: {self.dataset_url}")
+            else:
+                logger.error(f"{'--':<20}Create dataset failed")
+                logger.error(resp.status_code)
+                logger.error(resp.content)
+        except ProxyError:
+            logger.error(self.host + " cannot be reached. Submit for review failed")
+            self.irods_client.add_metadata(Status.ATTRIBUTE.value,  f"Dataverse:{Status.REQUEST_REVIEW_FAILED}")

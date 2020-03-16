@@ -501,6 +501,7 @@ class ExporterState(Enum):
     CREATE_DATASET_FAILED = "create-dataset-failed"
     UPLOAD_FAILED = "upload-failed"
     UPLOAD_CORRUPTED = "upload-corrupted"
+    REQUEST_REVIEW_FAILED = "request-review-failed"
 
     FINALIZE = "finalize"
     EXPORTED = "exported"
