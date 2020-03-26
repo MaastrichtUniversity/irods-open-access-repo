@@ -46,6 +46,9 @@ class MetadataMapper:
 
         self.add_subject()
 
+        depositor = self.imetadata.depositor.split("@")[0]
+        self.add_depositor(depositor)
+
         contacts = []
         contact_email = self.add_contact_email(self.imetadata.creator)
         contacts.append(contact_email)
@@ -177,6 +180,17 @@ class MetadataMapper:
             "typeName": "dateOfDeposit",
             "multiple": False,
             "value": date,
+            "typeClass": "primitive"
+        }
+        if up:
+            self.update_fields(new)
+        return new
+
+    def add_depositor(self, depositor, up=True):
+        new = {
+            "typeName": "depositor",
+            "multiple": False,
+            "value": depositor,
             "typeClass": "primitive"
         }
         if up:
