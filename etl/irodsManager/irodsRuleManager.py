@@ -43,6 +43,7 @@ class RuleManager:
         close_rule = Rule(self.session, body=rule_body)
         close_rule.execute()
 
+    # TODO: Consider to convert the rule_body into an iRODS server side rule
     def rule_deletion(self, upload_success):
         logger.info("Rule deletion")
 
@@ -66,6 +67,7 @@ class RuleManager:
         else:
             logger.info("Deletion skipped. collection.files != uploaded.files")
 
+    # TODO: Consider to convert the rule_body into an iRODS server side rule
     def rule_checksum(self, path):
         logger.info(f"{'--':<20}Rule checksum")
         self.session.connection_timeout = 1200
@@ -83,6 +85,7 @@ class RuleManager:
 
         return irods_hash_decode
 
+    # TODO: Consider to convert the rule_body into an iRODS server side rule
     @staticmethod
     def rule_collection_checksum(path):
         logger.info(f"{'--':<10}Query collection checksum")

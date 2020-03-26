@@ -16,11 +16,11 @@ class DataverseExporter:
         self.exporter_client = None
 
         if "DATAVERSE_HOST" not in os.environ:
-            logger.error("DATVERSE_HOST is missing. Please add it to the docker-compose file")
+            logger.error("DATAVERSE_HOST is missing. Please add it to the docker-compose file")
             exit()
 
         if "DATAVERSE_TOKEN" not in os.environ:
-            logger.error("DATVERSE_TOKEN is missing. Please add it to the irods.secrets.cfg file")
+            logger.error("DATAVERSE_TOKEN is missing. Please add it to the irods.secrets.cfg file")
             exit()
 
 
