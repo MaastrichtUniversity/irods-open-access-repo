@@ -79,12 +79,14 @@ class irodsClient:
 
     @staticmethod
     def read_tag_node_dict(root, tag):
-        node_dict = {}
+        node_list = []
         for i in root.iterfind(tag):
+            node_dict = {}
             for k in i:
                 if k.text is not None:
                     node_dict.update({k.tag: k.text})
-        return [node_dict]
+            node_list.append(node_dict)
+        return node_list
 
     def read_collection_metadata(self):
         logger.info("--\t Read collection AVU")
