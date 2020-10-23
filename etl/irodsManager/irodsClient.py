@@ -54,8 +54,12 @@ class irodsClient:
     @staticmethod
     def read_tag(root, tag):
         if root.find(tag).text is not None:
-            tag_id = root.find(tag).get("id").split(":", 1)
-            return {"vocabulary": tag_id[0], "uri": tag_id[1].strip("class:"), "name": root.find(tag).text}
+            # Check if the xml tag exist and if it contains an ontology class
+            if root.find(tag).get("id") is not None and ":http:" in root.find(tag).get("id"):
+                tag_id = root.find(tag).get("id").split(":", 1)
+                return {"vocabulary": tag_id[0], "uri": tag_id[1].strip("class:"), "name": root.find(tag).text}
+            else:
+                return {"vocabulary": "", "uri": "", "name": root.find(tag).text}
         else:
             return []
 
