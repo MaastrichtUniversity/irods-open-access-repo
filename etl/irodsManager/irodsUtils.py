@@ -542,6 +542,8 @@ class irodsMetadata:
         self.date = None
         self.pid = None
 
+        self.creator_email = None
+
         self.bytesize = None
         self.numfiles = None
 
