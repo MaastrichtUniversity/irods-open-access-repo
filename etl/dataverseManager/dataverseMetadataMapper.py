@@ -50,7 +50,7 @@ class MetadataMapper:
         self.add_depositor(depositor)
 
         contacts = []
-        contact_email = self.add_contact_email(self.imetadata.creator)
+        contact_email = self.add_contact_email(self.imetadata.creator_email)
         contacts.append(contact_email)
 
         for c in self.imetadata.contact:
