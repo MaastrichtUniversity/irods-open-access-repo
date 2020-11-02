@@ -557,3 +557,4 @@ class irodsMetadata:
 
         self.dataset_json = None
         self.depositor = None
+        self.depositor_email = None
