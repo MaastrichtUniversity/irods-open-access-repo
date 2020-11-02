@@ -195,12 +195,17 @@ def zip_collection(irods_client, stream, upload_success,  restrict_list):
             irods_sha = hashlib.sha256()
             irods_md5 = hashlib.md5()
             buff = session.data_objects.open(file.path, 'r')
-            # Replace space character
-            root_folder_name = irods_client.imetadata.title.replace(" ", "_")
             # Remove iRODS project collection path
-            zip_file_path = re.sub(r"/nlmumc/projects/P[0-9]{9}/C[0-9]{9}", root_folder_name, file.path)
+            zip_file_path = re.sub(r"/nlmumc/projects/P[0-9]{9}/C[0-9]{9}", "", file.collection.path)
+            #  Replace specials characters ( ) [ ] { } $ % & - + @ ~ ' € ! ^
+            zip_file_path = re.sub(r"[\\\(\)\[\]\{\}\$\%\&\+@~'€!\^]", "_", zip_file_path)
             # Replace specials characters /: * ? " < > | ; #
             zip_file_path = re.sub(r"[\\:\*\?\"<>\|;#]", "_", zip_file_path)
+            zip_file_name = re.sub(r"[\\:\*\?\"<>\|;#]", "_", file.name)
+            if zip_file_path == "":
+                zip_file_path = zip_file_name
+            else:
+                zip_file_path = zip_file_path + "/" + zip_file_name
             zip_info = zipfile.ZipInfo(zip_file_path)
             zip_info.file_size = file.size
             zip_info.compress_type = zipfile.ZIP_DEFLATED

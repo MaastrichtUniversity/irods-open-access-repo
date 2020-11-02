@@ -101,10 +101,6 @@ class irodsClient:
         u = self.session.users.get(self.imetadata.creator)
         self.imetadata.creator_email = u.metadata.get_one('email').value
 
-        logger.info("--\t Get depositor email AVU")
-        u = self.session.users.get(self.imetadata.depositor)
-        self.imetadata.depositor_email = u.metadata.get_one('email').value
-
         logger.info("--\t Parse collection metadata.xml")
         meta_xml = self.coll.path + "/metadata.xml"
         buff = self.session.data_objects.open(meta_xml, 'r')
