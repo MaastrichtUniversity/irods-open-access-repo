@@ -1,6 +1,8 @@
 import hashlib
 import json
 import logging
+import ntpath
+
 import requests
 import time
 import os
@@ -167,8 +169,12 @@ class DataverseClient(ExporterClient):
                 count += 1
                 # Get value
                 hexdigest_list = self.upload_success[k]
+                path, file = ntpath.split(k)
                 # Filter out specials characters in the key
-                filtered_path = re.sub(r"[\\:\*\?\"<>\|;#]", "_", k)
+                zip_file_path = re.sub(r"[\\\(\)\[\]\{\}\$\%\&\+@~'€!\^]", "_", path)
+                zip_file_path = re.sub(r"[\\:\*\?\"<>\|;#]", "_", zip_file_path)
+                zip_file_name = re.sub(r"[\\:\*\?\"<>\|;#]", "_", file)
+                filtered_path = zip_file_path + "/" + zip_file_name
                 # Add key-value pair to temporary dictionary
                 tmp_dict[filtered_path] = hexdigest_list
         # Replace upload_success with the filtered out key items
@@ -190,14 +196,11 @@ class DataverseClient(ExporterClient):
         validated = False
         if resp.status_code == HTTPStatus.OK.value:
             for file_json in resp.json()['data']['files']:
-                # "space character" in the collection title are replace to "_" during the zipping process
-                # So we have to reverse it now
-                root_folder_name = self.irods_client.imetadata.title.replace(" ", "_")
-                # Filter out the collection title from directoryLabel
-                collection_folder = file_json['directoryLabel'].replace(root_folder_name, "")
-                # Restore file path to match irods absolute path
-                file_path = self.irods_client.coll.path + collection_folder + "/" + file_json['dataFile']['filename']
-
+                # Check if the file is at the root of the collection
+                if 'directoryLabel' in file_json:
+                    file_path = self.irods_client.coll.path + "/" + file_json['directoryLabel'] + "/" + file_json['dataFile']['filename']
+                else:
+                    file_path = self.irods_client.coll.path + "/" + file_json['dataFile']['filename']
                 # index 1 -> md5_hexdigest
                 if file_json['dataFile']['md5'] == self.upload_success[file_path][1]:
                     count += 1
@@ -227,6 +230,10 @@ class DataverseClient(ExporterClient):
 
         endpoint = "http://" + host + "/email/send"
 
+        logger.info("--\t Get depositor email AVU")
+        u = self.session.users.get(self.irods_client.imetadata.depositor)
+        depositor_email = u.metadata.get_one('email').value
+
         template_options = {
             "TITLE": self.irods_client.imetadata.title,
             "DESCRIPTION": self.irods_client.imetadata.description,
@@ -249,7 +256,7 @@ class DataverseClient(ExporterClient):
             "templateOptions": template_options,
             "emailOptions": {
                 "from": from_address,
-                "to": self.irods_client.imetadata.depositor,
+                "to": depositor_email,
             }
         }
 
