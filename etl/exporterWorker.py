@@ -6,7 +6,7 @@ import time
 import logging
 
 import pika
-import json
+import ast
 
 # from zenodoManager.irods2Zenodo import ZenodoExporter
 # from figshareManager.irods2Figshare import FigshareExporter
@@ -21,13 +21,10 @@ logger = logging.getLogger('root')
 
 def collection_etl(ch, method, properties, body):
     try:
-        data = json.loads(body.decode("utf-8"))
-        # remove user API token from logs
-        log_data = data.copy()
-        log_data.pop("token")
-        logger.info(f" [x] Received %r" % log_data)
-    except json.decoder.JSONDecodeError:
-        logger.error("json.loads %r" % body.decode("utf-8").replace("\"", "", 3))
+        data = ast.literal_eval(body.decode("utf-8"))
+        logger.info(f" [x] Received %r" % data)
+    except:
+        logger.error("Failed body message parsing")
     else:
         path = "/nlmumc/projects/" + data['project'] + "/" + data['collection']
         irods_client = irodsClient(host=os.environ['IRODS_HOST'], port=1247, user=os.environ['IRODS_USER'],
