@@ -98,8 +98,7 @@ class irodsClient:
             self.imetadata.__dict__.update({x.name.lower().replace('dcat:', ''): x.value})
 
         logger.info("--\t Get creator email AVU")
-        u = self.session.users.get(self.imetadata.creator)
-        self.imetadata.creator_email = u.metadata.get_one('email').value
+        self.imetadata.creator_email = self.imetadata.creator
 
         logger.info("--\t Parse collection metadata.xml")
         meta_xml = self.coll.path + "/metadata.xml"

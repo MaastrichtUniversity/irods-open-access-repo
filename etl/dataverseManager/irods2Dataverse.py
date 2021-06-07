@@ -23,7 +23,6 @@ class DataverseExporter:
             logger.error("DATAVERSE_TOKEN is missing. Please add it to the irods.secrets.cfg file")
             exit()
 
-
     def init_export(self, irods_client, data):
         self.irods_client = irods_client
         try:
