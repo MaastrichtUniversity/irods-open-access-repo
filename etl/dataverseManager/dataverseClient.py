@@ -91,7 +91,7 @@ class DataverseClient(ExporterClient):
         self.deletion = deletion
         self.restrict = restrict
         if len(restrict_list) > 0:
-            self.restrict_list = restrict_list.split(",")
+            self.restrict_list = restrict_list
 
         if self.dataset_deposit_url is not None:
             self.irods_client.update_metadata_status(Status.CREATE_DATASET.value, Status.PREPARE_COLLECTION.value)
