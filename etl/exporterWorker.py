@@ -8,9 +8,6 @@ import logging
 import pika
 import ast
 
-# from zenodoManager.irods2Zenodo import ZenodoExporter
-# from figshareManager.irods2Figshare import FigshareExporter
-# from easyManager.irods2Easy import EasyExporter
 from dataverseManager.irods2Dataverse import DataverseExporter
 from irodsManager.irodsClient import irodsClient
 
@@ -58,12 +55,14 @@ def collection_etl(ch, method, properties, body):
                                    password=os.environ['IRODS_PASS'], zone='nlmumc')
         irods_client.prepare(path, data['repository'])
         logger.info(f" [x] Create {data['repository']} exporter worker")
-        class_name = data['repository'] + 'Exporter'
-        exporter = globals()[class_name]()
-        data['restrict_list'] = extend_folder_path(irods_client.session, data['restrict_list'])
-        exporter.init_export(irods_client, data)
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-        logger.info(" [x] Sent projectCollection.exporter.executed")
+        exporter = None
+        if data['repository'] == "Dataverse":
+            exporter = DataverseExporter()
+        if exporter is not None:
+            data['restrict_list'] = extend_folder_path(irods_client.session, data['restrict_list'])
+            exporter.init_export(irods_client, data)
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            logger.info(" [x] Sent projectCollection.exporter.executed")
 
         return True
 
