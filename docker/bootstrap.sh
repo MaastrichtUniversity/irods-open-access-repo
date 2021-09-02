@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
  
 # End with exec call to preserve signals
-exec python3 -u /opt/app/exporterWorker.py
+exec python3 -u /opt/app/etl/exporterWorker.py
