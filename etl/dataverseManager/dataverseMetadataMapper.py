@@ -21,7 +21,7 @@ class MetadataMapper:
     def read_metadata(self):
         logger.info("--\t Map metadata")
 
-        with open('resources/template.json') as f:
+        with open('etl/resources/template.json') as f:
             self.dataset_json = json.load(f)
 
         self.md = self.dataset_json['datasetVersion']
