@@ -1,12 +1,20 @@
 FROM python:3.8
 
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
 WORKDIR /opt/app
  
 # Python requirements
-ADD requirements.txt /opt
+ADD ./docker/requirements.txt /opt
 RUN pip install -r /opt/requirements.txt
 
+RUN mkdir -p /opt/app/etl
+COPY ./etl /opt/app/etl/
+
+ENV PYTHONPATH /opt/app:/opt/app/etl
+
 # Entry point
-ADD bootstrap.sh /opt
+ADD ./docker/bootstrap.sh /opt
 RUN chmod +x /opt/bootstrap.sh
 ENTRYPOINT [ "/opt/bootstrap.sh" ]

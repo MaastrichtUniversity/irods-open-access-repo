@@ -91,7 +91,7 @@ class DataverseClient(ExporterClient):
         self.deletion = deletion
         self.restrict = restrict
         if len(restrict_list) > 0:
-            self.restrict_list = restrict_list.split(",")
+            self.restrict_list = restrict_list
 
         if self.dataset_deposit_url is not None:
             self.irods_client.update_metadata_status(Status.CREATE_DATASET.value, Status.PREPARE_COLLECTION.value)
@@ -231,8 +231,7 @@ class DataverseClient(ExporterClient):
         endpoint = "http://" + host + "/email/send"
 
         logger.info("--\t Get depositor email AVU")
-        u = self.session.users.get(self.irods_client.imetadata.depositor)
-        depositor_email = u.metadata.get_one('email').value
+        depositor_email = self.irods_client.imetadata.depositor
 
         template_options = {
             "TITLE": self.irods_client.imetadata.title,

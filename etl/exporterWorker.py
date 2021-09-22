@@ -8,37 +8,55 @@ import logging
 import pika
 import json
 
-# from zenodoManager.irods2Zenodo import ZenodoExporter
-# from figshareManager.irods2Figshare import FigshareExporter
-# from easyManager.irods2Easy import EasyExporter
-from dataverseManager.irods2Dataverse import DataverseExporter
-from irodsManager.irodsClient import irodsClient
+from etl.dataverseManager.irods2Dataverse import DataverseExporter
+from etl.irodsManager.irodsClient import irodsClient
 
 log_level = os.environ['LOG_LEVEL']
 logging.basicConfig(level=logging.getLevelName(log_level), format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger('root')
 
 
+def extend_folder_path(session, selected_list):
+    """
+    If a folder is part of the original selected list, this function will recursively walk into it to retrieve all
+    its files children and add them to the original selected list
+    """
+    extended_list = []
+    for path in selected_list.split(",\t"):
+        absolute_path = "/nlmumc/projects/" + path
+        # Check if the path is collection
+        if session.collections.exists(absolute_path):
+            collection = session.collections.get(absolute_path)
+            for coll, sub, files in collection.walk():
+                for file in files:
+                    extended_list.append(file.path.replace("/nlmumc/projects/", ""))
+        # Or a file
+        else:
+            extended_list.append(path)
+
+    return extended_list
+
+
 def collection_etl(ch, method, properties, body):
     try:
         data = json.loads(body.decode("utf-8"))
-        # remove user API token from logs
-        log_data = data.copy()
-        log_data.pop("token")
-        logger.info(f" [x] Received %r" % log_data)
-    except json.decoder.JSONDecodeError:
-        logger.error("json.loads %r" % body.decode("utf-8").replace("\"", "", 3))
+        logger.info(f" [x] Received %r" % data)
+    except:
+        logger.error("Failed body message parsing")
     else:
         path = "/nlmumc/projects/" + data['project'] + "/" + data['collection']
         irods_client = irodsClient(host=os.environ['IRODS_HOST'], port=1247, user=os.environ['IRODS_USER'],
                                    password=os.environ['IRODS_PASS'], zone='nlmumc')
         irods_client.prepare(path, data['repository'])
         logger.info(f" [x] Create {data['repository']} exporter worker")
-        class_name = data['repository'] + 'Exporter'
-        exporter = globals()[class_name]()
-        exporter.init_export(irods_client, data)
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-        logger.info(" [x] Sent projectCollection.exporter.executed")
+        exporter = None
+        if data['repository'] == "Dataverse":
+            exporter = DataverseExporter()
+        if exporter is not None:
+            data['restrict_list'] = extend_folder_path(irods_client.session, data['restrict_list'])
+            exporter.init_export(irods_client, data)
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            logger.info(" [x] Sent projectCollection.exporter.executed")
 
         return True
 
@@ -88,7 +106,7 @@ if __name__ == "__main__":
                                            port=5672,
                                            virtual_host='/',
                                            credentials=credentials,
-                                           heartbeat_interval=600,
+                                           heartbeat=600,
                                            blocked_connection_timeout=300)
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
