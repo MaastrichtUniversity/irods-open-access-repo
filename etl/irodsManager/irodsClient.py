@@ -3,6 +3,8 @@ from irods.exception import iRODSException
 from irods.meta import iRODSMeta
 import xml.etree.ElementTree as ET
 import logging
+import ssl
+import os
 
 from irodsManager.irodsRuleManager import RuleManager
 from irodsManager.irodsUtils import irodsMetadata, ExporterState
@@ -29,11 +31,22 @@ class irodsClient:
 
     def connect(self):
         logger.info("--\t Connect to iRODS")
+        ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=None, capath=None, cadata=None)
+        ssl_settings = {
+            'irods_client_server_negotiation': 'request_server_negotiation',
+            'irods_client_server_policy': os.environ['IRODS_CLIENT_SERVER_POLICY'],
+            'irods_encryption_algorithm': 'AES-256-CBC',
+            'irods_encryption_key_size': 32,
+            'irods_encryption_num_hash_rounds': 16,
+            'irods_encryption_salt_size': 8,
+            'ssl_context': ssl_context
+        }
         self.session = iRODSSession(host=self.host,
                                     port=self.port,
                                     user=self.user,
                                     password=self.password,
-                                    zone=self.zone)
+                                    zone=self.zone,
+                                    **ssl_settings)
 
     def prepare(self, path, repository):
         logger.info("iRODS")
