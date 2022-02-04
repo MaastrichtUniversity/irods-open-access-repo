@@ -29,6 +29,14 @@ class irodsClient:
         self.rulemanager = None
         self.repository = None
 
+    def __del__(self):
+        # iRODSSession's reference count is always > 0 due to circular
+        # references.  Therefore, losing all local references to it doesn't
+        # imply that its  __del__() method and subsequent .cleanup() will be
+        # called.
+        if self.session:
+            self.session.cleanup()
+
     def connect(self):
         logger.info("--\t Connect to iRODS")
         ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=None, capath=None, cadata=None)
