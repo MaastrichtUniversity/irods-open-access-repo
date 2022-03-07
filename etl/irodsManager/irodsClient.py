@@ -1,7 +1,6 @@
 from irods.exception import iRODSException
 import logging
 
-from cedarparsingutils.dto.general_instance import GeneralInstance
 from irodsrulewrapper.rule import RuleManager
 
 from irodsManager.irodsUtils import irodsMetadata, ExporterState
@@ -27,7 +26,7 @@ class irodsClient:
         self.repository = None
 
         self.rule_manager = None
-        self.instance = GeneralInstance()
+        self.instance = None
         self.config = {
             "IRODS_HOST": self.host,
             "IRODS_USER": self.user,
@@ -46,8 +45,10 @@ class irodsClient:
     def connect(self):
         logger.info("--\t Connect to iRODS")
         self.rule_manager = RuleManager(admin_mode=True, config=self.config)
+        self.session = self.rule_manager.session
 
     def prepare(self, project_id, collection_id, repository):
+        self.connect()
         path = f"/nlmumc/projects/{project_id}/{collection_id}"
         self.coll = self.session.collections.get(path)
         self.repository = repository
@@ -56,16 +57,19 @@ class irodsClient:
         # clear all exporterState AVU values and re-add in-queue-for-export
         # in case of remaining failed report AVUs like: upload-failed , failed-dataset-creation etc ..
         new_status = f"{repository}:{ExporterState.IN_QUEUE_FOR_EXPORT.value}"
-        self.update_metadata_status("exporterState", new_status, project_id, collection_id)
+        self.update_metadata_status("exporterState", new_status)
 
     def read_collection_metadata(self, project_id, collection_id):
+        logger.info("--\t Read collection AVU")
+        for x in self.coll.metadata.items():
+            self.imetadata.__dict__.update({x.name.lower().replace('dcat:', ''): x.value})
+
         logger.info("--\t Parse collection instance.json")
         instance = self.rule_manager.read_instance_from_collection(project_id, collection_id)
         self.instance = self.rule_manager.parse_general_instance(instance)
 
-    def update_metadata_status(self, attribute, value, project_id, collection_id):
-        path = f"/nlmumc/projects/{project_id}/{collection_id}"
-        self.rule_manager.set_collection_avu(path, attribute, value)
+    def update_metadata_status(self, attribute, value):
+        self.rule_manager.set_collection_avu(self.coll.path, attribute, value)
 
     def remove_metadata(self, key, value):
         try:
