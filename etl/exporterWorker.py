@@ -71,8 +71,8 @@ def main(channel, retry_counter=None):
     )
 
     channel.basic_consume(
-        collection_etl,
         queue='repository.collection-etl',
+        on_message_callback=collection_etl
     )
 
     # When connection closed, try again 10 time otherwise quit.
