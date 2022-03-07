@@ -47,7 +47,7 @@ def collection_etl(ch, method, properties, body):
         path = "/nlmumc/projects/" + data['project'] + "/" + data['collection']
         irods_client = irodsClient(host=os.environ['IRODS_HOST'], port=1247, user=os.environ['IRODS_USER'],
                                    password=os.environ['IRODS_PASS'], zone='nlmumc')
-        irods_client.prepare(path, data['repository'])
+        irods_client.prepare(data['project'], data['collection'] , data['repository'])
         logger.info(f" [x] Create {data['repository']} exporter worker")
         exporter = None
         if data['repository'] == "Dataverse":
