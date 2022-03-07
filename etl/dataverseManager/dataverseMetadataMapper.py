@@ -1,5 +1,6 @@
 import json
 import logging
+import urllib.request
 
 logger = logging.getLogger('iRODS to Dataverse')
 
@@ -12,13 +13,18 @@ self.protocol = None
 class MetadataMapper:
     """Map iRODS metadata to the Open Access Repository metadata format
     """
-    def __init__(self, imetadata, depositor):
-        self.imetadata = imetadata
+    def __init__(self, collection_avu, depositor, instance):
+        self.collection_avu = collection_avu
         self.dataset_json = None
         self.md = None
-        self.imetadata.depositor = depositor
+        self.depositor = depositor
+        self.instance = instance
+
+        self.contributor_type_vocabulary = {}
+        self.publication_id_type_vocabulary = {}
 
     def read_metadata(self):
+        self.get_controlled_vocabulary()
         logger.info("--\t Map metadata")
 
         with open('etl/resources/template.json') as f:
@@ -26,74 +32,67 @@ class MetadataMapper:
 
         self.md = self.dataset_json['datasetVersion']
 
-        author = self.imetadata.creator.split("@")[0]
-        self.add_author(author)
+        self.add_author(self.instance.creator.full_name)
 
-        if self.imetadata.pid is None:
+        if self.instance.identifier.pid is None:
             logger.error(f"{'--':<20}PID invalid")
         else:
-            url = f"https://hdl.handle.net/{self.imetadata.pid}"
+            url = f"https://hdl.handle.net/{self.instance.identifier.pid}"
             self.add_alternative_url(url)
 
-        if self.imetadata.description is None:
+        if self.instance.description.description is None:
             self.add_description("")
         else:
-            self.add_description(self.imetadata.description)
+            self.add_description(self.instance.description.description)
 
-        self.add_date(self.imetadata.date)
+        self.add_date(self.instance.date.date)
 
-        self.add_title(self.imetadata.title)
+        self.add_title(self.instance.title.title)
 
         self.add_subject()
 
-        depositor = self.imetadata.depositor.split("@")[0]
+        depositor = self.depositor.split("@")[0]
         self.add_depositor(depositor)
 
         contacts = []
-        contact_email = self.add_contact_email(self.imetadata.creator_email)
-        contacts.append(contact_email)
-
-        for c in self.imetadata.contact:
-            if len(c) != 0:
-                if c.get("email") is None:
-                    c.update({"email": ""})
-                if c.get("affiliation") is None:
-                    c.update({"affiliation": ""})
-                pub = self.add_contact(c.get("firstName") + " " + c.get("lastName"), c.get("email"),
-                                       c.get("affiliation"))
-                contacts.append(pub)
-
+        for contact in self.instance.contacts.contacts:
+            pub = self.add_contact(contact.full_name, contact.email, contact.affiliation.label)
+            contacts.append(pub)
         self.add_contacts(contacts)
 
+        contributors = []
+        for contributor in self.instance.contributors.contributors:
+            contributor_type = ""
+            if contributor.type.label in self.contributor_type_vocabulary:
+                contributor_type = self.contributor_type_vocabulary[contributor.type.label]
+
+            pub = self.add_contributor(contributor.full_name, contributor_type)
+            contributors.append(pub)
+        self.add_contributors(contributors)
+
         keywords = []
-        if self.imetadata.tissue:
-            keyword = self.add_keyword(self.imetadata.tissue.get("name"), self.imetadata.tissue.get("vocabulary"),
-                                       self.imetadata.tissue.get("uri"))
+        for subject in self.instance.subjects.subjects:
+            if subject.scheme_iri is not None:
+                keyword = self.add_keyword(subject.keyword, subject.scheme_iri.rsplit("/", 1)[1], subject.value_uri.uri)
+            else:
+                keyword = self.add_keyword(subject.keyword, "", "")
             keywords.append(keyword)
-
-        if self.imetadata.technology:
-            keyword = self.add_keyword(self.imetadata.technology.get("name"),
-                                       self.imetadata.technology.get("vocabulary"),
-                                       self.imetadata.technology.get("uri"))
-            keywords.append(keyword)
-
-        if self.imetadata.organism:
-            keyword = self.add_keyword(self.imetadata.organism.get("name"), self.imetadata.organism.get("vocabulary"),
-                                       self.imetadata.organism.get("uri"))
-            keywords.append(keyword)
-
-        for f in self.imetadata.factors:
-            keyword = self.add_keyword(f, "", "")
-            keywords.append(keyword)
-
         self.add_keywords(keywords)
 
         publications = []
-        for f in self.imetadata.articles:
-            info = f.split("/")
-            pub = self.add_publication(info[3] + info[4], info[2].strip(".org"), f)
-            publications.append(pub)
+        for resource in self.instance.related_resources.related_resources:
+            value = resource.identifier
+            url = ""
+            if resource.identifier.startswith("http"):
+                url = resource.identifier
+                value = resource.identifier.rsplit("/", 1)[1]
 
+            publication_id_type = ""
+            if resource.identifier_type.label.lower() in self.publication_id_type_vocabulary:
+                publication_id_type = self.publication_id_type_vocabulary[resource.identifier_type.label.lower()]
+
+            pub = self.add_publication(value, publication_id_type, url)
+            publications.append(pub)
         self.add_publications(publications)
 
         self.dataset_json['datasetVersion'] = self.md
@@ -324,3 +323,48 @@ class MetadataMapper:
             }
         }
         return new
+
+    def add_contributors(self, contributors, up=True):
+        new = {
+            "multiple": True,
+            "typeClass": "compound",
+            "typeName": "contributor",
+            "value": contributors
+        }
+        if up:
+            self.update_fields(new)
+        return new
+
+    @staticmethod
+    def add_contributor(name, role):
+        new = {
+            "contributorType": {
+                "typeName": "contributorType",
+                "multiple": False,
+                "typeClass": "controlledVocabulary",
+                "value": role
+            },
+            "contributorName": {
+                "typeName": "contributorName",
+                "multiple": False,
+                "typeClass": "primitive",
+                "value": name
+            }
+        }
+        return new
+
+    def get_controlled_vocabulary(self):
+        schema_url = (
+            "https://raw.githubusercontent.com/IQSS/dataverse/develop/scripts/api/data/metadatablocks/citation.tsv"
+        )
+        with urllib.request.urlopen(schema_url) as url:
+            controlled_vocabulary = url.readlines()
+
+        for line in controlled_vocabulary:
+            decoded_line = line.decode()
+            if "publicationIDType" in decoded_line:
+                value = decoded_line.split("\t")[2]
+                self.publication_id_type_vocabulary[value.lower()] = value
+            elif "contributorType" in decoded_line:
+                value = decoded_line.split("\t")[2]
+                self.contributor_type_vocabulary[value.lower()] = value
