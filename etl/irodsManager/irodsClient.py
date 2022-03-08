@@ -11,25 +11,21 @@ logger = logging.getLogger("iRODS to Dataverse")
 class irodsClient:
     """iRODS client to connect to the iRODS server, to retrieve metadata and data."""
 
-    def __init__(self, host=None, port=None, user=None, password=None, zone=None):
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-        self.zone = zone
+    def __init__(self, host=None, user=None, password=None):
+        self.collection_object = None
+        self.project_id = None
+        self.collection_id = None
 
-        self.session = None
-        self.coll = None
         self.imetadata = irodsMetadata()
-        self.rulemanager = None
         self.repository = None
+        self.instance = None
 
         self.rule_manager = None
-        self.instance = None
+        self.session = None
         self.config = {
-            "IRODS_HOST": self.host,
-            "IRODS_USER": self.user,
-            "IRODS_PASS": self.password,
+            "IRODS_HOST": host,
+            "IRODS_USER": user,
+            "IRODS_PASS": password,
             "IRODS_CLIENT_SERVER_POLICY": "CS_NEG_REQUIRE",
         }
 
@@ -47,9 +43,11 @@ class irodsClient:
         self.session = self.rule_manager.session
 
     def prepare(self, project_id, collection_id, repository):
+        self.project_id = project_id
+        self.collection_id = collection_id
         self.connect()
         path = f"/nlmumc/projects/{project_id}/{collection_id}"
-        self.coll = self.session.collections.get(path)
+        self.collection_object = self.session.collections.get(path)
         self.repository = repository
         self.read_collection_metadata(project_id, collection_id)
 
@@ -60,7 +58,7 @@ class irodsClient:
 
     def read_collection_metadata(self, project_id, collection_id):
         logger.info("--\t Read collection AVU")
-        for x in self.coll.metadata.items():
+        for x in self.collection_object.metadata.items():
             self.imetadata.__dict__.update({x.name.lower().replace("dcat:", ""): x.value})
 
         logger.info("--\t Parse collection instance.json")
@@ -69,21 +67,21 @@ class irodsClient:
 
     def update_metadata_status(self, attribute, value):
         new_status = f"{self.repository}:{value}"
-        self.rule_manager.set_collection_avu(self.coll.path, attribute, new_status)
+        self.rule_manager.set_collection_avu(self.collection_object.path, attribute, new_status)
 
     def remove_metadata(self, key, value):
         try:
             if value:
-                self.coll.metadata.remove(key, value)
+                self.collection_object.metadata.remove(key, value)
         except iRODSException as error:
             logger.error(f"{key} : {value}  {error}")
 
     def add_metadata(self, key, value, unit=None):
         try:
             if unit is None and value:
-                self.coll.metadata.add(key, value)
+                self.collection_object.metadata.add(key, value)
             elif value:
-                self.coll.metadata.add(key, value, unit)
+                self.collection_object.metadata.add(key, value, unit)
         except iRODSException as error:
             logger.error(f"{key} : {value}  {error}")
 
@@ -97,4 +95,4 @@ class irodsClient:
             self.remove_metadata("exporterState", new_status)
 
         logger.error("Call rule closeProjectCollection")
-        self.rulemanager.rule_close()
+        self.rule_manager.close_project_collection(self.project_id, self.collection_id)

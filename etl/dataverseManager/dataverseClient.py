@@ -92,7 +92,7 @@ class DataverseClient(ExporterClient):
         if self.dataset_deposit_url is not None:
             self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.PREPARE_COLLECTION.value)
             self.pool = Pool(processes=1)
-            self.pool_result = self.pool.apply_async(self.run_checksum, [self.irods_client.coll.path])
+            self.pool_result = self.pool.apply_async(self.run_checksum, [self.irods_client.collection_object.path])
 
             size_bundle = self._prepare_zip()
             response = self._upload_zip_collection(size_bundle)
@@ -192,19 +192,19 @@ class DataverseClient(ExporterClient):
                 # Check if the file is at the root of the collection
                 if "directoryLabel" in file_json:
                     file_path = (
-                        self.irods_client.coll.path
+                        self.irods_client.collection_object.path
                         + "/"
                         + file_json["directoryLabel"]
                         + "/"
                         + file_json["dataFile"]["filename"]
                     )
                 else:
-                    file_path = self.irods_client.coll.path + "/" + file_json["dataFile"]["filename"]
+                    file_path = self.irods_client.collection_object.path + "/" + file_json["dataFile"]["filename"]
 
                 # Dataverse rename '.metadata_versions' sub-folder path by removing the '.'
                 # So we need to revert it back to be able to compare the md5 checksums values
-                metadata_version_dataverse = self.irods_client.coll.path + "/metadata_versions/"
-                metadata_version_irods = self.irods_client.coll.path + "/.metadata_versions/"
+                metadata_version_dataverse = self.irods_client.collection_object.path + "/metadata_versions/"
+                metadata_version_irods = self.irods_client.collection_object.path + "/.metadata_versions/"
                 file_path = file_path.replace(metadata_version_dataverse, metadata_version_irods)
 
                 # index 1 -> md5_hexdigest

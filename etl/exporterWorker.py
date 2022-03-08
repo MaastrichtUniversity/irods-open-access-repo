@@ -46,11 +46,7 @@ def collection_etl(ch, method, properties, body):
     else:
         path = "/nlmumc/projects/" + data["project"] + "/" + data["collection"]
         irods_client = irodsClient(
-            host=os.environ["IRODS_HOST"],
-            port=1247,
-            user=os.environ["IRODS_USER"],
-            password=os.environ["IRODS_PASS"],
-            zone="nlmumc",
+            host=os.environ["IRODS_HOST"], user=os.environ["IRODS_USER"], password=os.environ["IRODS_PASS"]
         )
         irods_client.prepare(data["project"], data["collection"], data["repository"])
         logger.info(f" [x] Create {data['repository']} exporter worker")

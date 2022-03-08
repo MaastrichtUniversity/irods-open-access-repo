@@ -58,5 +58,7 @@ class DataverseExporter:
             self.exporter_client.import_files(delete, restrict, restrict_list)
 
         # Cleanup
-        self.irods_client.rulemanager.rule_close()
+        self.irods_client.rule_manager.close_project_collection(
+            self.irods_client.project_id, self.irods_client.collection_id
+        )
         self.irods_client.session.cleanup()
