@@ -21,7 +21,7 @@ logger = logging.getLogger("iRODS to Dataverse")
 class DataverseClient(ExporterClient):
     """Dataverse client to import datasets and files"""
 
-    def __init__(self, host, token, alias, irodsclient):
+    def __init__(self, host, token, alias, irodsclient, depositor):
         """
         :param host: String IP of the dataverseManager's host
         :param token: String token credential
@@ -43,6 +43,7 @@ class DataverseClient(ExporterClient):
         self.dataset_deposit_url = None
         self.dataset_pid = None
         self.dataset_url = None
+        self.depositor = depositor
 
         self.upload_success = {}
 
@@ -50,7 +51,7 @@ class DataverseClient(ExporterClient):
         self.restrict = False
         self.restrict_list = []
 
-        self.zip_name = irodsclient.imetadata.title + ".zip"
+        self.zip_name = irodsclient.instance.title.title + ".zip"
 
     def create_dataset(self, md, data_export=False):
         logger.info(f"{'--':<10}Dataset - request creation")
@@ -236,19 +237,16 @@ class DataverseClient(ExporterClient):
 
         endpoint = "http://" + host + "/email/send"
 
-        logger.info("--\t Get depositor email AVU")
-        depositor_email = self.irods_client.imetadata.depositor
-
         template_options = {
-            "TITLE": self.irods_client.imetadata.title,
-            "DESCRIPTION": self.irods_client.imetadata.description,
-            "CREATOR": self.irods_client.imetadata.creator,
-            "DATE": self.irods_client.imetadata.date,
-            "BYTESIZE": self.irods_client.imetadata.bytesize,
-            "NUMFILES": self.irods_client.imetadata.numfiles,
-            "PID": self.irods_client.imetadata.pid,
+            "TITLE": self.irods_client.instance.title.title,
+            "DESCRIPTION": self.irods_client.instance.description.description,
+            "CREATOR": self.irods_client.instance.creator.full_name,
+            "DATE": self.irods_client.instance.date.date,
+            "BYTESIZE": self.irods_client.collection_avu.bytesize,
+            "NUMFILES": self.irods_client.collection_avu.numfiles,
+            "PID": self.irods_client.instance.identifier.pid,
             "TIMESTAMP": time.strftime("%d-%m-%Y %H:%M:%S"),
-            "DEPOSITOR": self.irods_client.imetadata.depositor,
+            "DEPOSITOR": self.depositor,
             "REPOSITORY": self.repository,
             "EXTERNAL_PID": self.dataset_pid,
             "DATASET_URL": self.dataset_url,
@@ -260,7 +258,7 @@ class DataverseClient(ExporterClient):
             "templateOptions": template_options,
             "emailOptions": {
                 "from": from_address,
-                "to": depositor_email,
+                "to": self.depositor,
             },
         }
 
@@ -271,7 +269,7 @@ class DataverseClient(ExporterClient):
             logger.error(endpoint + " cannot be reached. Send e-mail confirmation failed")
 
         if resp_user.status_code == HTTPStatus.OK.value:
-            logger.info(f"Reporting e-mail confirmation sent to {self.irods_client.imetadata.depositor}")
+            logger.info(f"Reporting e-mail confirmation sent to {self.depositor}")
         else:
             logger.error(resp_user.status_code)
             logger.error(resp_user.content)

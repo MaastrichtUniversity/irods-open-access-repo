@@ -45,13 +45,13 @@ class DataverseExporter:
     def do_export(self, alias, depositor, delete=False, restrict=False, data_export=False, restrict_list=""):
         # Metadata
         logger.info("Metadata")
-        self.metadata_mapper = MetadataMapper(self.irods_client.imetadata, depositor, self.irods_client.instance)
+        self.metadata_mapper = MetadataMapper(depositor, self.irods_client.instance)
         md = self.metadata_mapper.read_metadata()
 
         # Dataverse
         logger.info("Dataverse")
         self.exporter_client = DataverseClient(
-            os.environ["DATAVERSE_HOST"], os.environ["DATAVERSE_TOKEN"], alias, self.irods_client
+            os.environ["DATAVERSE_HOST"], os.environ["DATAVERSE_TOKEN"], alias, self.irods_client, depositor
         )
         self.exporter_client.create_dataset(md, data_export)
         if data_export:

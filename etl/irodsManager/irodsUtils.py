@@ -535,29 +535,12 @@ class ExporterClient:
         return RuleManager.rule_collection_checksum(path)
 
 
-class irodsMetadata:
-    """Store all metadata (AVUs and metadata.xml) from an iRODS Collection"""
+class CollectionAVU:
+    """Store metadata AVUs from an iRODS Collection"""
 
     def __init__(self):
-        self.title = None
         self.creator = None
-        self.description = None
-        self.date = None
         self.pid = None
-
-        self.creator_email = None
 
         self.bytesize = None
         self.numfiles = None
-
-        self.tissue = None
-        self.technology = None
-        self.organism = None
-        self.factors = None
-        self.protocol = None
-        self.contact = None
-        self.articles = None
-
-        self.dataset_json = None
-        self.depositor = None
-        self.depositor_email = None

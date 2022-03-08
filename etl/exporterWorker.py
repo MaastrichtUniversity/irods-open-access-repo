@@ -44,7 +44,6 @@ def collection_etl(ch, method, properties, body):
     except:
         logger.error("Failed body message parsing")
     else:
-        path = "/nlmumc/projects/" + data["project"] + "/" + data["collection"]
         irods_client = irodsClient(
             host=os.environ["IRODS_HOST"], user=os.environ["IRODS_USER"], password=os.environ["IRODS_PASS"]
         )

@@ -8,8 +8,7 @@ logger = logging.getLogger("iRODS to Dataverse")
 class MetadataMapper:
     """Map iRODS metadata to the Open Access Repository metadata format"""
 
-    def __init__(self, collection_avu, depositor, instance):
-        self.collection_avu = collection_avu
+    def __init__(self, depositor, instance):
         self.dataset_json = None
         self.md = None
         self.depositor = depositor

@@ -3,7 +3,7 @@ import logging
 
 from irodsrulewrapper.rule import RuleManager
 
-from irodsManager.irodsUtils import irodsMetadata, ExporterState
+from irodsManager.irodsUtils import CollectionAVU, ExporterState
 
 logger = logging.getLogger("iRODS to Dataverse")
 
@@ -16,7 +16,7 @@ class irodsClient:
         self.project_id = None
         self.collection_id = None
 
-        self.imetadata = irodsMetadata()
+        self.collection_avu = CollectionAVU()
         self.repository = None
         self.instance = None
 
@@ -59,7 +59,7 @@ class irodsClient:
     def read_collection_metadata(self, project_id, collection_id):
         logger.info("--\t Read collection AVU")
         for x in self.collection_object.metadata.items():
-            self.imetadata.__dict__.update({x.name.lower().replace("dcat:", ""): x.value})
+            self.collection_avu.__dict__.update({x.name.lower().replace("dcat:", ""): x.value})
 
         logger.info("--\t Parse collection instance.json")
         instance = self.rule_manager.read_instance_from_collection(project_id, collection_id)
