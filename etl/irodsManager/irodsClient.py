@@ -5,12 +5,11 @@ from irodsrulewrapper.rule import RuleManager
 
 from irodsManager.irodsUtils import irodsMetadata, ExporterState
 
-logger = logging.getLogger('iRODS to Dataverse')
+logger = logging.getLogger("iRODS to Dataverse")
 
 
 class irodsClient:
-    """iRODS client to connect to the iRODS server, to retrieve metadata and data.
-    """
+    """iRODS client to connect to the iRODS server, to retrieve metadata and data."""
 
     def __init__(self, host=None, port=None, user=None, password=None, zone=None):
         self.host = host
@@ -62,14 +61,15 @@ class irodsClient:
     def read_collection_metadata(self, project_id, collection_id):
         logger.info("--\t Read collection AVU")
         for x in self.coll.metadata.items():
-            self.imetadata.__dict__.update({x.name.lower().replace('dcat:', ''): x.value})
+            self.imetadata.__dict__.update({x.name.lower().replace("dcat:", ""): x.value})
 
         logger.info("--\t Parse collection instance.json")
         instance = self.rule_manager.read_instance_from_collection(project_id, collection_id)
         self.instance = self.rule_manager.parse_general_instance(instance)
 
     def update_metadata_status(self, attribute, value):
-        self.rule_manager.set_collection_avu(self.coll.path, attribute, value)
+        new_status = f"{self.repository}:{value}"
+        self.rule_manager.set_collection_avu(self.coll.path, attribute, new_status)
 
     def remove_metadata(self, key, value):
         try:
@@ -94,9 +94,7 @@ class irodsClient:
         # exporter client crashed, clean all exporterState AVUs
         for state in ExporterState:
             new_status = f"{repository}:{state.value}"
-            self.remove_metadata('exporterState', new_status)
+            self.remove_metadata("exporterState", new_status)
 
         logger.error("Call rule closeProjectCollection")
         self.rulemanager.rule_close()
-
-
