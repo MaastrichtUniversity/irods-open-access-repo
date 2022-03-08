@@ -35,7 +35,6 @@ class DataverseClient(ExporterClient):
 
         self.irods_client = irodsclient
         self.session = irodsclient.session
-        self.rulemanager = irodsclient.rulemanager
 
         self.pool = None
         self.pool_result = None
@@ -101,8 +100,8 @@ class DataverseClient(ExporterClient):
             validated_checksum = self._validate_checksum()
             validated_upload = self._validate_upload(response)
             if validated_checksum and validated_upload:
-                if self.deletion:
-                    self.rulemanager.rule_deletion(self.upload_success)
+                # if self.deletion:
+                #     self.rulemanager.rule_deletion(self.upload_success)
                 self._final_report()
                 self.email_confirmation()
                 self.submit_dataset_for_review()
@@ -201,6 +200,13 @@ class DataverseClient(ExporterClient):
                     )
                 else:
                     file_path = self.irods_client.coll.path + "/" + file_json["dataFile"]["filename"]
+
+                # Dataverse rename '.metadata_versions' sub-folder path by removing the '.'
+                # So we need to revert it back to be able to compare the md5 checksums values
+                metadata_version_dataverse = self.irods_client.coll.path + "/metadata_versions/"
+                metadata_version_irods = self.irods_client.coll.path + "/.metadata_versions/"
+                file_path = file_path.replace(metadata_version_dataverse, metadata_version_irods)
+
                 # index 1 -> md5_hexdigest
                 if file_json["dataFile"]["md5"] == self.upload_success[file_path][1]:
                     count += 1
