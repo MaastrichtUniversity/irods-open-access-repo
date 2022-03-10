@@ -50,6 +50,7 @@ class MetadataMapper:
         self.map_contributors()
         self.map_keywords()
         self.map_publications()
+        self.map_resource_type()
 
         self.dataset_json["datasetVersion"] = self.md
         logger.debug(json.dumps(self.dataset_json, indent=4))
@@ -111,6 +112,10 @@ class MetadataMapper:
 
             publications.append(self.add_publication(value, publication_id_type, url))
         self.add_publications(publications)
+
+    def map_resource_type(self):
+        if self.instance.resource_type.type_detail is not None:
+            self.add_kind_of_data([self.instance.resource_type.type_detail])
 
     def add_author(self, author, affiliation="", up=True):
         new = {
@@ -177,6 +182,12 @@ class MetadataMapper:
 
     def add_date(self, date, up=True):
         new = {"typeName": "dateOfDeposit", "multiple": False, "value": date, "typeClass": "primitive"}
+        if up:
+            self.update_fields(new)
+        return new
+
+    def add_kind_of_data(self, resource_type, up=True):
+        new = {"typeName": "kindOfData", "multiple": True, "typeClass": "primitive", "value": resource_type}
         if up:
             self.update_fields(new)
         return new

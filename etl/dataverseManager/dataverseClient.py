@@ -27,6 +27,7 @@ class DataverseClient(ExporterClient):
         :param token: String token credential
         :param alias: String Alias/ID of the dataverseManager where to import dataset & files
         :param irodsclient: irodsClient object - client to iRODS database
+        :param depositor: Dataset depositor
         """
         self.repository = "Dataverse"
         self.host = host

@@ -53,8 +53,8 @@ class irodsClient:
 
         # clear all exporterState AVU values and re-add in-queue-for-export
         # in case of remaining failed report AVUs like: upload-failed , failed-dataset-creation etc ..
-        new_status = f"{repository}:{ExporterState.IN_QUEUE_FOR_EXPORT.value}"
-        self.update_metadata_status("exporterState", new_status)
+
+        self.update_metadata_status(ExporterState.ATTRIBUTE.value, ExporterState.IN_QUEUE_FOR_EXPORT.value)
 
     def read_collection_metadata(self, project_id, collection_id):
         logger.info("--\t Read collection AVU")
@@ -92,7 +92,7 @@ class irodsClient:
         # exporter client crashed, clean all exporterState AVUs
         for state in ExporterState:
             new_status = f"{repository}:{state.value}"
-            self.remove_metadata("exporterState", new_status)
+            self.remove_metadata(ExporterState.ATTRIBUTE.value, new_status)
 
         logger.error("Call rule closeProjectCollection")
         self.rule_manager.close_project_collection(self.project_id, self.collection_id)
