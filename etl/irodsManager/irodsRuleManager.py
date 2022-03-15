@@ -4,16 +4,16 @@ import binascii
 import unicodedata
 import os
 import json
+import ssl
 
 from irods.rule import Rule
 from irods.session import iRODSSession
 
-logger = logging.getLogger('iRODS to Dataverse')
+logger = logging.getLogger("iRODS to Dataverse")
 
 
 class RuleManager:
-    """Manager to execute iRods rules
-    """
+    """Manager to execute iRods rules"""
 
     def __init__(self, session, collection):
         """
@@ -29,16 +29,20 @@ class RuleManager:
 
     def rule_open(self):
         logger.info("Rule open")
-        rule_body = "do_openProjectCollection {" \
-                    "{openProjectCollection('" + self.projectID + "', '" + self.collectionID + "', 'rods', 'own');}" \
-                                                                                               "}"
+        rule_body = (
+            "do_openProjectCollection {"
+            "{openProjectCollection('" + self.projectID + "', '" + self.collectionID + "', 'rods', 'own');}"
+            "}"
+        )
         open_rule = Rule(self.session, body=rule_body)
         open_rule.execute()
 
     def rule_close(self):
         logger.info("Rule close")
-        rule_body = "do_closeProjectCollection {" \
-                    "{closeProjectCollection('" + self.projectID + "', '" + self.collectionID + "');}}"
+        rule_body = (
+            "do_closeProjectCollection {"
+            "{closeProjectCollection('" + self.projectID + "', '" + self.collectionID + "');}}"
+        )
 
         close_rule = Rule(self.session, body=rule_body)
         close_rule.execute()
@@ -52,11 +56,13 @@ class RuleManager:
             logger.info(f"{'--':<20}Start deletion")
             for data in self.collection.data_objects:
                 if data.name != "metadata.xml":
-                    rule_body = "do_deleteDataObject {" \
-                                "{ msiDataObjUnlink(" \
-                                "'/nlmumc/projects/"+self.projectID+"/"+self.collectionID+"/"+data.name+"'," \
-                                "'forceChksum=', *chkSum);\n" \
-                                "writeLine('stdout', *chkSum);}}"
+                    rule_body = (
+                        "do_deleteDataObject {"
+                        "{ msiDataObjUnlink("
+                        "'/nlmumc/projects/" + self.projectID + "/" + self.collectionID + "/" + data.name + "',"
+                        "'forceChksum=', *chkSum);\n"
+                        "writeLine('stdout', *chkSum);}}"
+                    )
                     rule = Rule(self.session, body=rule_body, output="ruleExecOut")
                     out = self.parse_rule_output(rule.execute())
                     if out == "0":
@@ -71,14 +77,16 @@ class RuleManager:
     def rule_checksum(self, path):
         logger.info(f"{'--':<20}Rule checksum")
         self.session.connection_timeout = 1200
-        rule_body = "do_checkSum {" \
-                    "{ msiDataObjChksum(" \
-                    "'"+path+"'," \
-                    "'forceChksum=', *chkSum);\n" \
-                    "writeLine('stdout', *chkSum);}}"
+        rule_body = (
+            "do_checkSum {"
+            "{ msiDataObjChksum("
+            "'" + path + "',"
+            "'forceChksum=', *chkSum);\n"
+            "writeLine('stdout', *chkSum);}}"
+        )
         rule = Rule(self.session, body=rule_body, output="ruleExecOut")
 
-        irods_hash = self.parse_rule_output(rule.execute()).split('sha2:')[1]
+        irods_hash = self.parse_rule_output(rule.execute()).split("sha2:")[1]
         base_hash = base64.b64decode(irods_hash)
         irods_hash_decode = binascii.hexlify(base_hash).decode("utf-8")
         self.session.connection_timeout = 120
@@ -89,11 +97,27 @@ class RuleManager:
     @staticmethod
     def rule_collection_checksum(path):
         logger.info(f"{'--':<10}Query collection checksum")
-        session = iRODSSession(host=os.environ['IRODS_HOST'], port=1247, user=os.environ['IRODS_USER'],
-                               password=os.environ['IRODS_PASS'], zone='nlmumc')
+        ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=None, capath=None, cadata=None)
+        ssl_settings = {
+            "irods_client_server_negotiation": "request_server_negotiation",
+            "irods_client_server_policy": os.environ["IRODS_CLIENT_SERVER_POLICY"],
+            "irods_encryption_algorithm": "AES-256-CBC",
+            "irods_encryption_key_size": 32,
+            "irods_encryption_num_hash_rounds": 16,
+            "irods_encryption_salt_size": 8,
+            "ssl_context": ssl_context,
+        }
+        session = iRODSSession(
+            host=os.environ["IRODS_HOST"],
+            port=1247,
+            user=os.environ["IRODS_USER"],
+            password=os.environ["IRODS_PASS"],
+            zone="nlmumc",
+            **ssl_settings,
+        )
         session.connection_timeout = 1200
 
-        path = path.split('/')
+        path = path.split("/")
         project = path[3]
         collID = path[4]
 
@@ -123,6 +147,7 @@ class RuleManager:
 
         irods_hash = RuleManager.parse_rule_output(rule.execute())
         session.connection_timeout = 120
+        session.cleanup()
 
         data = json.loads(irods_hash)
         for k in data:
@@ -135,7 +160,7 @@ class RuleManager:
     @staticmethod
     def parse_rule_output(out_param_array):
         buff = out_param_array.MsParam_PI[0].inOutStruct.stdoutBuf.buf
-        buff = buff.decode('utf-8')
+        buff = buff.decode("utf-8")
         buf_cleaned = "".join(ch for ch in buff if unicodedata.category(ch)[0] != "C")
 
         return buf_cleaned

@@ -14,7 +14,7 @@ from requests_toolbelt.multipart.encoder import CustomBytesIO, encode_with
 from requests.utils import super_len
 from xml.etree import ElementTree
 
-logger = logging.getLogger('iRODS to Dataverse')
+logger = logging.getLogger("iRODS to Dataverse")
 BLOCK_SIZE = 1024 * io.DEFAULT_BUFFER_SIZE
 
 date_iso = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
@@ -30,12 +30,12 @@ class IteratorAsBinaryFile(object):
     <requests_toolbelt.streaming_iterator>
     """
 
-    def __init__(self, size, iterator, md5, encoding='utf-8'):
+    def __init__(self, size, iterator, md5, encoding="utf-8"):
         #: The expected size of the upload
         self.size = int(size)
         self.md5 = md5
         if self.size < 0:
-            raise ValueError('The size of the upload must be a positive integer')
+            raise ValueError("The size of the upload must be a positive integer")
 
         #: Attribute that requests will check to determine the length of the
         #: body. See bug #80 for more details
@@ -54,7 +54,7 @@ class IteratorAsBinaryFile(object):
         try:
             return encode_with(next(self.iterator), self.encoding)
         except StopIteration:
-            return b''
+            return b""
 
     def _load_bytes(self, size):
         self._buffer.smart_truncate()
@@ -68,7 +68,7 @@ class IteratorAsBinaryFile(object):
     def read(self, size=-1):
         size = int(size)
         if size == -1:
-            return b''.join(self.iterator)
+            return b"".join(self.iterator)
 
         self._load_bytes(size)
         s = self._buffer.read(size)
@@ -83,24 +83,23 @@ class IteratorAsBinaryFile(object):
 
 
 class UnseekableStream(RawIOBase):
-    """Custom raw buffer for streaming.
-    """
+    """Custom raw buffer for streaming."""
 
     def __init__(self):
-        self._buffer = b''
+        self._buffer = b""
 
     def writable(self):
         return True
 
     def write(self, b):
         if self.closed:
-            raise ValueError('Stream was closed!')
+            raise ValueError("Stream was closed!")
         self._buffer += b
         return len(b)
 
     def get(self):
         chunk = self._buffer
-        self._buffer = b''
+        self._buffer = b""
         return chunk
 
 
@@ -117,7 +116,7 @@ def archive_generator_faker(func, stream, bar, irods_md5):
     try:
         size = 0
         if debug:
-            with open("debug_archive0.zip", 'wb') as out_fp:
+            with open("debug_archive0.zip", "wb") as out_fp:
                 for i in func:
                     s = stream.get()
                     if len(s) > 0:
@@ -136,7 +135,7 @@ def archive_generator_faker(func, stream, bar, irods_md5):
                     size += len(s)
         return size
     except StopIteration:
-        return b''
+        return b""
 
 
 def archive_generator(func, stream, bar):
@@ -151,7 +150,7 @@ def archive_generator(func, stream, bar):
     try:
         size = 0
         if debug:
-            with open("debug_archive00.zip", 'wb') as out_fp:
+            with open("debug_archive00.zip", "wb") as out_fp:
                 for i in func:
                     s = stream.get()
                     if len(s) > 0:
@@ -168,10 +167,10 @@ def archive_generator(func, stream, bar):
                     bar.update(len(s))
                     yield s
     except StopIteration:
-        return b''
+        return b""
 
 
-def zip_collection(irods_client, stream, upload_success,  restrict_list):
+def zip_collection(irods_client, stream, upload_success, restrict_list):
     """Create a generator to zip the collection.
     Also calculate the iRODS sha256 chksums .
 
@@ -181,10 +180,10 @@ def zip_collection(irods_client, stream, upload_success,  restrict_list):
     :param dict upload_success: {file_path: hash_key}
     """
 
-    zip_buffer = zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED)
+    zip_buffer = zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED)
     yield
 
-    collection = irods_client.coll
+    collection = irods_client.collection_object
     session = irods_client.session
     for coll, sub, files in collection.walk():
         for file in files:
@@ -194,7 +193,7 @@ def zip_collection(irods_client, stream, upload_success,  restrict_list):
 
             irods_sha = hashlib.sha256()
             irods_md5 = hashlib.md5()
-            buff = session.data_objects.open(file.path, 'r')
+            buff = session.data_objects.open(file.path, "r")
             # Remove iRODS project collection path
             zip_file_path = re.sub(r"/nlmumc/projects/P[0-9]{9}/C[0-9]{9}", "", file.collection.path)
             #  Replace specials characters ( ) [ ] { } $ % & - + @ ~ ' € ! ^
@@ -209,8 +208,8 @@ def zip_collection(irods_client, stream, upload_success,  restrict_list):
             zip_info = zipfile.ZipInfo(zip_file_path)
             zip_info.file_size = file.size
             zip_info.compress_type = zipfile.ZIP_DEFLATED
-            with zip_buffer.open(zip_info, mode='w') as dest:
-                for chunk in iter(lambda: buff.read(BLOCK_SIZE), b''):
+            with zip_buffer.open(zip_info, mode="w") as dest:
+                for chunk in iter(lambda: buff.read(BLOCK_SIZE), b""):
                     dest.write(chunk)
                     irods_sha.update(chunk)
                     irods_md5.update(chunk)
@@ -276,10 +275,10 @@ def bag_collection(irods_client, stream, upload_success):
     :param dict upload_success: {file_path: hash_key}
     """
 
-    zip_buffer = zipfile.ZipFile(stream, 'w', compression=zipfile.ZIP_DEFLATED)
+    zip_buffer = zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED)
     yield
 
-    collection = irods_client.coll
+    collection = irods_client.collection_object
     session = irods_client.session
     imetadata = irods_client.imetadata
     checksum_list = []
@@ -288,16 +287,18 @@ def bag_collection(irods_client, stream, upload_success):
     for coll, sub, files in collection.walk():
         for f in files:
             total_files += 1
-            buff = session.data_objects.open(f.path, 'r')
-            arc_name = f.path.replace(collection.path, f'{collection.name}/data')
+            buff = session.data_objects.open(f.path, "r")
+            arc_name = f.path.replace(collection.path, f"{collection.name}/data")
             zip_info = zipfile.ZipInfo(arc_name)
             zip_info.file_size = f.size
             zip_info.compress_type = zipfile.ZIP_DEFLATED
             irods_sha256 = hashlib.sha256()
             irods_sha1 = hashlib.sha1()
-            with zip_buffer.open(zip_info, mode='w') as dest:
-                for chunk in iter(lambda: buff.read(BLOCK_SIZE), b''):
-                    dest.write(chunk, )
+            with zip_buffer.open(zip_info, mode="w") as dest:
+                for chunk in iter(lambda: buff.read(BLOCK_SIZE), b""):
+                    dest.write(
+                        chunk,
+                    )
                     irods_sha256.update(chunk)
                     irods_sha1.update(chunk)
                     total_bytes += len(chunk)
@@ -310,7 +311,7 @@ def bag_collection(irods_client, stream, upload_success):
             # logger.info(f"{'--':<20}Buffer checksum {f.name}:")
             # logger.info(f"{'--':<30}SHA-256: {sha256_hexdigest}")
             # logger.info(f"{'--':<30}SHA-1: {sha1_hexdigest}")
-            checksum_list.append((arc_name.replace(f'{collection.name}/data', 'data'), sha1_hexdigest))
+            checksum_list.append((arc_name.replace(f"{collection.name}/data", "data"), sha1_hexdigest))
     yield
 
     tagmanifest = []
@@ -319,11 +320,11 @@ def bag_collection(irods_client, stream, upload_success):
     zip_info = zipfile.ZipInfo(manifest_name)
     zip_info.compress_type = zipfile.ZIP_DEFLATED
     m_size = 0
-    with zip_buffer.open(zip_info, mode='w') as manifest:
+    with zip_buffer.open(zip_info, mode="w") as manifest:
         md5 = hashlib.md5()
         for filename, digest in checksum_list:
             line = "%s  %s\n" % (digest, filename)
-            line = line.encode('utf-8')
+            line = line.encode("utf-8")
             m_size += len(line)
             md5.update(line)
             manifest.write(line)
@@ -334,12 +335,12 @@ def bag_collection(irods_client, stream, upload_success):
     zip_info = zipfile.ZipInfo(bagit_name)
     zip_info.compress_type = zipfile.ZIP_DEFLATED
     m_size = 0
-    with zip_buffer.open(zip_info, mode='w') as manifest:
+    with zip_buffer.open(zip_info, mode="w") as manifest:
         md5 = hashlib.md5()
         line = """BagIt-Version: 0.97
 Tag-File-Character-Encoding: UTF-8
 """
-        line = line.encode('utf-8')
+        line = line.encode("utf-8")
         m_size += len(line)
         md5.update(line)
         manifest.write(line)
@@ -351,36 +352,36 @@ Tag-File-Character-Encoding: UTF-8
     zip_info = zipfile.ZipInfo(baginfo_name)
     zip_info.compress_type = zipfile.ZIP_DEFLATED
     m_size = 0
-    with zip_buffer.open(zip_info, mode='w') as manifest:
+    with zip_buffer.open(zip_info, mode="w") as manifest:
         md5 = hashlib.md5()
         line = f"""Bagging-Date: {date}
 Created: {date_iso}
 Payload-Oxum: {oxum}
 """
-        line = line.encode('utf-8')
+        line = line.encode("utf-8")
         m_size += len(line)
         md5.update(line)
         manifest.write(line)
         tagmanifest.append((md5.hexdigest(), baginfo_name))
     yield
 
-    with open('resources/dataset.xml') as f:
+    with open("resources/dataset.xml") as f:
         name = f"{collection.name}/metadata/dataset.xml"
 
         tree = ElementTree.parse(f)
-        ElementTree.register_namespace('dcterms', "http://purl.org/dc/terms/")
-        ElementTree.register_namespace('dc', "http://purl.org/dc/elements/1.1/")
-        ElementTree.register_namespace('dcx-dai', "http://easy.dans.knaw.nl/schemas/dcx/dai/")
-        ElementTree.register_namespace('ddm', "http://easy.dans.knaw.nl/schemas/md/ddm/")
-        ElementTree.register_namespace('xsi', "http://www.w3.org/2001/XMLSchema-instance")
-        ElementTree.register_namespace('id-type', "http://easy.dans.knaw.nl/schemas/vocab/identifier-type/")
+        ElementTree.register_namespace("dcterms", "http://purl.org/dc/terms/")
+        ElementTree.register_namespace("dc", "http://purl.org/dc/elements/1.1/")
+        ElementTree.register_namespace("dcx-dai", "http://easy.dans.knaw.nl/schemas/dcx/dai/")
+        ElementTree.register_namespace("ddm", "http://easy.dans.knaw.nl/schemas/md/ddm/")
+        ElementTree.register_namespace("xsi", "http://www.w3.org/2001/XMLSchema-instance")
+        ElementTree.register_namespace("id-type", "http://easy.dans.knaw.nl/schemas/vocab/identifier-type/")
 
         root = tree.getroot()
 
-        for title in root.iter('{http://purl.org/dc/elements/1.1/}title'):
+        for title in root.iter("{http://purl.org/dc/elements/1.1/}title"):
             title.text = f"{title.text}: {imetadata.title}"
 
-        for description in root.iter('{http://purl.org/dc/terms/}description'):
+        for description in root.iter("{http://purl.org/dc/terms/}description"):
             description.text = f"{description.text}: {imetadata.description}"
 
         doc = ElementTree.tostring(root)
@@ -388,7 +389,7 @@ Payload-Oxum: {oxum}
         zip_info = zipfile.ZipInfo(name)
         zip_info.compress_type = zipfile.ZIP_DEFLATED
         m_size = 0
-        with zip_buffer.open(zip_info, mode='w') as manifest:
+        with zip_buffer.open(zip_info, mode="w") as manifest:
             md5 = hashlib.md5()
             line = doc
             m_size += len(line)
@@ -397,34 +398,34 @@ Payload-Oxum: {oxum}
             tagmanifest.append((md5.hexdigest(), name))
     yield
 
-    with open('resources/files.xml') as f:
+    with open("resources/files.xml") as f:
         tree = ElementTree.parse(f)
-        ElementTree.register_namespace('dcterms', "http://purl.org/dc/terms/")
+        ElementTree.register_namespace("dcterms", "http://purl.org/dc/terms/")
 
         root = tree.getroot()
-        file = root.find('file')
+        file = root.find("file")
 
-        for fmt in file.iter('{http://purl.org/dc/terms/}format'):
+        for fmt in file.iter("{http://purl.org/dc/terms/}format"):
             pass
 
         for filename, digest in checksum_list:
             if filename != "data/metadata.xml":
                 new_file = ElementTree.SubElement(root, file.tag)
-                new_file.attrib = {"filepath": filename.replace(f'{collection.name}/data', 'data')}
+                new_file.attrib = {"filepath": filename.replace(f"{collection.name}/data", "data")}
                 new_format = ElementTree.SubElement(new_file, fmt.tag)
                 new_format.text = "text/plain"
 
-        doc = ElementTree.tostring(root) + "\n\n".encode('utf-8')
+        doc = ElementTree.tostring(root) + "\n\n".encode("utf-8")
 
         name = f"{collection.name}/metadata/files.xml"
         zip_info = zipfile.ZipInfo(name)
         zip_info.compress_type = zipfile.ZIP_DEFLATED
         m_size = 0
-        with zip_buffer.open(zip_info, mode='w') as manifest:
+        with zip_buffer.open(zip_info, mode="w") as manifest:
             md5 = hashlib.md5()
             # header
             line = '<?xml version="1.0" encoding="UTF-8"?>\n'
-            line = line.encode('utf-8')
+            line = line.encode("utf-8")
             m_size += len(line)
             md5.update(line)
             manifest.write(line)
@@ -441,10 +442,10 @@ Payload-Oxum: {oxum}
     zip_info = zipfile.ZipInfo(tagmanifest_name)
     zip_info.compress_type = zipfile.ZIP_DEFLATED
     m_size = 0
-    with zip_buffer.open(zip_info, mode='w') as manifest:
+    with zip_buffer.open(zip_info, mode="w") as manifest:
         for digest, filename in tagmanifest:
-            line = "%s  %s\n" % (digest, filename.replace(f'{collection.name}/', ''))
-            line = line.encode('utf-8')
+            line = "%s  %s\n" % (digest, filename.replace(f"{collection.name}/", ""))
+            line = line.encode("utf-8")
             m_size += len(line)
             manifest.write(line)
     yield
@@ -491,10 +492,9 @@ def get_bag_generator(irods_client, upload_success, irods_md5, size) -> Iterator
 
 
 class ExporterState(Enum):
-    """Enum exporter state
-    """
+    """Enum exporter state"""
 
-    ATTRIBUTE = 'exporterState'
+    ATTRIBUTE = "exporterState"
 
     IN_QUEUE_FOR_EXPORT = "in-queue-for-export"
 
@@ -530,36 +530,17 @@ class ExporterState(Enum):
 
 
 class ExporterClient:
-
     @staticmethod
     def run_checksum(path):
         return RuleManager.rule_collection_checksum(path)
 
 
-class irodsMetadata:
-    """Store all metadata (AVUs and metadata.xml) from an iRODS Collection
-    """
+class CollectionAVU:
+    """Store metadata AVUs from an iRODS Collection"""
 
     def __init__(self):
-        self.title = None
         self.creator = None
-        self.description = None
-        self.date = None
         self.pid = None
-
-        self.creator_email = None
 
         self.bytesize = None
         self.numfiles = None
-
-        self.tissue = None
-        self.technology = None
-        self.organism = None
-        self.factors = None
-        self.protocol = None
-        self.contact = None
-        self.articles = None
-
-        self.dataset_json = None
-        self.depositor = None
-        self.depositor_email = None
