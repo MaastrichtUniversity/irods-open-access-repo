@@ -11,9 +11,9 @@ import json
 from etl.dataverseManager.irods2Dataverse import DataverseExporter
 from etl.irodsManager.irodsClient import irodsClient
 
-log_level = os.environ['LOG_LEVEL']
-logging.basicConfig(level=logging.getLevelName(log_level), format='%(asctime)s %(levelname)s %(message)s')
-logger = logging.getLogger('root')
+log_level = os.environ["LOG_LEVEL"]
+logging.basicConfig(level=logging.getLevelName(log_level), format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("root")
 
 
 def extend_folder_path(session, selected_list):
@@ -44,16 +44,16 @@ def collection_etl(ch, method, properties, body):
     except:
         logger.error("Failed body message parsing")
     else:
-        path = "/nlmumc/projects/" + data['project'] + "/" + data['collection']
-        irods_client = irodsClient(host=os.environ['IRODS_HOST'], port=1247, user=os.environ['IRODS_USER'],
-                                   password=os.environ['IRODS_PASS'], zone='nlmumc')
-        irods_client.prepare(path, data['repository'])
+        irods_client = irodsClient(
+            host=os.environ["IRODS_HOST"], user=os.environ["IRODS_USER"], password=os.environ["IRODS_PASS"]
+        )
+        irods_client.prepare(data["project"], data["collection"], data["repository"])
         logger.info(f" [x] Create {data['repository']} exporter worker")
         exporter = None
-        if data['repository'] == "Dataverse":
+        if data["repository"] == "Dataverse":
             exporter = DataverseExporter()
         if exporter is not None:
-            data['restrict_list'] = extend_folder_path(irods_client.session, data['restrict_list'])
+            data["restrict_list"] = extend_folder_path(irods_client.session, data["restrict_list"])
             exporter.init_export(irods_client, data)
             ch.basic_ack(delivery_tag=method.delivery_tag)
             logger.info(" [x] Sent projectCollection.exporter.executed")
@@ -62,18 +62,15 @@ def collection_etl(ch, method, properties, body):
 
 
 def main(channel, retry_counter=None):
-    channel.queue_declare(queue='repository.collection-etl', durable=True)
+    channel.queue_declare(queue="repository.collection-etl", durable=True)
 
     channel.queue_bind(
-        exchange='datahub.events_tx',
-        queue='repository.collection-etl',
-        routing_key='projectCollection.exporter.requested'
+        exchange="datahub.events_tx",
+        queue="repository.collection-etl",
+        routing_key="projectCollection.exporter.requested",
     )
 
-    channel.basic_consume(
-        collection_etl,
-        queue='repository.collection-etl',
-    )
+    channel.basic_consume(queue="repository.collection-etl", on_message_callback=collection_etl)
 
     # When connection closed, try again 10 time otherwise quit.
     if retry_counter < 10:
@@ -83,12 +80,14 @@ def main(channel, retry_counter=None):
         exit(1)
 
     try:
-        logger.info(' [x] Waiting for queue repository.collection-etl')
+        logger.info(" [x] Waiting for queue repository.collection-etl")
         channel.start_consuming()
     except pika.exceptions.ConnectionClosed:
         logger.error(
             "Failed with pika.exceptions.ConnectionClosed: Sleeping for 60 secs before next try."
-            + " This was try " + str(retry_counter))
+            + " This was try "
+            + str(retry_counter)
+        )
         time.sleep(60)
         new_connection = pika.BlockingConnection(parameters)
         new_ch = new_connection.channel()
@@ -101,13 +100,15 @@ def sigterm_handler():
 
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, sigterm_handler)
-    credentials = pika.PlainCredentials(os.environ['RABBITMQ_USER'], os.environ['RABBITMQ_PASS'])
-    parameters = pika.ConnectionParameters(host=os.environ['RABBITMQ_HOST'],
-                                           port=5672,
-                                           virtual_host='/',
-                                           credentials=credentials,
-                                           heartbeat=600,
-                                           blocked_connection_timeout=300)
+    credentials = pika.PlainCredentials(os.environ["RABBITMQ_USER"], os.environ["RABBITMQ_PASS"])
+    parameters = pika.ConnectionParameters(
+        host=os.environ["RABBITMQ_HOST"],
+        port=5672,
+        virtual_host="/",
+        credentials=credentials,
+        heartbeat=600,
+        blocked_connection_timeout=300,
+    )
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
 

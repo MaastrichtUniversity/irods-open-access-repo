@@ -1,8 +1,9 @@
-python-irodsclient>=0.8.1,<1.0.0
+-e git+https://github.com/MaastrichtUniversity/irods-rule-wrapper.git@v1.7.1#egg=irods-rule-wrapper
+python-irodsclient
 lxml>=4.2.5,<5.0.0
 requests>=2.20.0,<3.0.0
 bleach>=3.0.2,<4.0.0
-pika>=0.12.0,<1.0.0
-tqdm>==4.32.1,<5.0.0
+pika>=1.2.0,<2.0.0
+tqdm>=4.32.1,<5.0.0
 requests-toolbelt>=0.9.1,<1.0.0
 
