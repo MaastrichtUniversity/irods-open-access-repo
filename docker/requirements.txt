@@ -1,4 +1,4 @@
--e git+https://github.com/MaastrichtUniversity/irods-rule-wrapper.git@DHS-1829#egg=irods-rule-wrapper
+-e git+https://github.com/MaastrichtUniversity/irods-rule-wrapper.git@v1.7.1#egg=irods-rule-wrapper
 python-irodsclient
 lxml>=4.2.5,<5.0.0
 requests>=2.20.0,<3.0.0
