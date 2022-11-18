@@ -8,7 +8,11 @@ import ssl
 
 from irods.rule import Rule
 from irods.session import iRODSSession
-from irodsrulewrapper.rule import RuleManager, RuleJSONManager
+from irodsrulewrapper.rule import RuleJSONManager
+
+# To avoid potential conflict between irodsrulewrapper.rule.RuleManager with the inline class RuleManager.
+# irodsrulewrapper.rule.RuleManager is imported as RuleWrapperManager
+from irodsrulewrapper.rule import RuleManager as RuleWrapperManager
 from dhpythonirodsutils import formatters
 
 logger = logging.getLogger("iRODS to Dataverse")
@@ -31,11 +35,11 @@ class RuleManager:
 
     def rule_open(self):
         logger.info("Rule open")
-        RuleManager(admin_mode=True).open_project_collection(self.projectID, self.collectionID, "rods", "own")
+        RuleWrapperManager(admin_mode=True).open_project_collection(self.projectID, self.collectionID, "rods", "own")
 
     def rule_close(self):
         logger.info("Rule close")
-        RuleManager(admin_mode=True).close_project_collection(self.projectID, self.collectionID)
+        RuleWrapperManager(admin_mode=True).close_project_collection(self.projectID, self.collectionID)
 
     # TODO: Consider to convert the rule_body into an iRODS server side rule
     def rule_checksum(self, path):
