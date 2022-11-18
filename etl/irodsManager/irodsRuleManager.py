@@ -66,7 +66,10 @@ class RuleManager:
         logger.info(f"{'--':<10}Query collection checksum")
         project_id = formatters.get_project_id_from_project_collection_path(path)
         collection_id = formatters.get_collection_id_from_project_collection_path(path)
-        data = RuleJSONManager(admin_mode=True).get_project_collection_checksum(project_id, collection_id)
+        rule_manager = RuleJSONManager(admin_mode=True)
+        rule_manager.set_session_connection_timeout(1800)
+        data = rule_manager.get_project_collection_checksum(project_id, collection_id)
+        rule_manager.cleanup()
         for virtual_path in data:
             base_hash = base64.b64decode(data[virtual_path])
             irods_hash_decode = binascii.hexlify(base_hash).decode("utf-8")
