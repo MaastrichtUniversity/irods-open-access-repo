@@ -1,4 +1,4 @@
--e git+https://github.com/MaastrichtUniversity/irods-rule-wrapper.git@2022.1#egg=irods-rule-wrapper
+-e git+https://github.com/MaastrichtUniversity/irods-rule-wrapper.git@2022.2.1#egg=irods-rule-wrapper
 lxml>=4.2.5,<5.0.0
 requests>=2.20.0,<3.0.0
 bleach>=3.0.2,<4.0.0
