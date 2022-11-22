@@ -169,6 +169,7 @@ class FigshareClient:
 
             md5_hexdigest = irods_md5.hexdigest()
             sha_hexdigest = irods_sha.hexdigest()
+            # TODO: FIX THIS ONCE WE WANT TO USE FIGSHARE!
             irods_hash_decode = self.rulemanager.rule_checksum(data.name)
 
             if sha_hexdigest == irods_hash_decode and size != 0:
