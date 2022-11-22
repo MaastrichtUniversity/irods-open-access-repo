@@ -102,8 +102,6 @@ class DataverseClient(ExporterClient):
             validated_checksum = self._validate_checksum()
             validated_upload = self._validate_upload(response)
             if validated_checksum and validated_upload:
-                # if self.deletion:
-                #     self.rulemanager.rule_deletion(self.upload_success)
                 self._final_report()
                 self.email_confirmation()
                 self.submit_dataset_for_review()
