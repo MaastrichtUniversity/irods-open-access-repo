@@ -2,8 +2,8 @@ import logging
 import os
 import sys
 
-from dataverseManager.dataverseClient import DataverseClient
-from dataverseManager.dataverseMetadataMapper import MetadataMapper
+from etl.dataverseManager.dataverseClient import DataverseClient
+from etl.dataverseManager.dataverseMetadataMapper import MetadataMapper
 
 logger = logging.getLogger("iRODS to Dataverse")
 
@@ -29,7 +29,6 @@ class DataverseExporter:
             self.do_export(
                 data["dataverse_alias"],
                 data["depositor"],
-                data["delete"],
                 data["restrict"],
                 data["data_export"],
                 data["restrict_list"],
@@ -42,7 +41,7 @@ class DataverseExporter:
             # Still raise the error
             raise
 
-    def do_export(self, alias, depositor, delete=False, restrict=False, data_export=False, restrict_list=""):
+    def do_export(self, alias, depositor, restrict=False, data_export=False, restrict_list=""):
         # Metadata
         logger.info("Metadata")
         self.metadata_mapper = MetadataMapper(depositor, self.irods_client.instance)
@@ -55,7 +54,7 @@ class DataverseExporter:
         )
         self.exporter_client.create_dataset(md, data_export)
         if data_export:
-            self.exporter_client.import_files(delete, restrict, restrict_list)
+            self.exporter_client.export_files(restrict, restrict_list)
 
         # Cleanup
         self.irods_client.rule_manager.close_project_collection(
