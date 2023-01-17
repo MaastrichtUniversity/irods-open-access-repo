@@ -83,29 +83,34 @@ class DataverseClient:
         url = f"{self.host}/api/dataverses/{self.alias}/datasets/"
 
         try:
-            resp = requests.post(
+            response = requests.post(
                 url,
                 data=json.dumps(metadata),
                 headers={"Content-type": "application/json", "X-Dataverse-key": self.token},
             )
-            if resp.status_code == HTTPStatus.CREATED.value:
-                self.dataset_pid = resp.json()["data"]["persistentId"]
-                self.dataset_url = f"{self.host}/dataset.xhtml?persistentId={self.dataset_pid}&version=DRAFT"
-                self.dataset_deposit_url = f"{self.host}/api/datasets/:persistentId/add?persistentId={self.dataset_pid}"
-                logger.info(f"{'--':<20}Dataset created with pid: {self.dataset_pid}")
-            else:
-                logger.error(f"{'--':<20}Create dataset failed")
-                logger.error(resp.content)
-                self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.CREATE_DATASET_FAILED.value)
-
-            if not data_export and resp.status_code == HTTPStatus.CREATED.value:
-                self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.FINALIZE.value)
-                self._final_report()
-                # self._email_confirmation()
-                # self._submit_dataset_for_review()
         except ProxyError:
             logger.error(self.host + " cannot be reached. Create dataset failed")
             self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.CREATE_DATASET_FAILED.value)
+
+            return
+
+        if response.status_code == HTTPStatus.CREATED.value:
+            self.dataset_pid = response.json()["data"]["persistentId"]
+            self.dataset_url = f"{self.host}/dataset.xhtml?persistentId={self.dataset_pid}&version=DRAFT"
+            self.dataset_deposit_url = f"{self.host}/api/datasets/:persistentId/add?persistentId={self.dataset_pid}"
+            logger.info(f"{'--':<20}Dataset created with pid: {self.dataset_pid}")
+        else:
+            logger.error(f"{'--':<20}Create dataset failed")
+            logger.error(response.content)
+            self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.CREATE_DATASET_FAILED.value)
+
+            return
+
+        if not data_export and response.status_code == HTTPStatus.CREATED.value:
+            self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.FINALIZE.value)
+            self._final_report()
+            self._email_confirmation()
+            self._submit_dataset_for_review()
 
     def export_files(self, restrict=False, restrict_list=""):
         """
@@ -123,16 +128,20 @@ class DataverseClient:
         if len(restrict_list) > 0:
             self.restrict_list = restrict_list
 
-        if self.dataset_deposit_url is not None:
-            self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.PREPARE_COLLECTION.value)
-            success = self._upload_files()
-            if success:
-                self._final_report()
-                # self._email_confirmation()
-                # self._submit_dataset_for_review()
-        else:
+        if self.dataset_deposit_url is None:
             logger.error(f"{'--':<20}Dataset unknown")
             self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.DATASET_UNKNOWN.value)
+
+            return
+
+        self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.PREPARE_COLLECTION.value)
+        success = self._upload_files()
+        if success:
+            self._final_report()
+            self._email_confirmation()
+            self._submit_dataset_for_review()
+        else:
+            self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.UPLOAD_CORRUPTED.value)
 
     def _upload_files(self) -> bool:
         """
@@ -149,13 +158,13 @@ class DataverseClient:
             If true, all uploads were successful.
         """
         logger.info(f"{'--':<10}Upload Files")
-        total = 0
+        total_uploads = 0
         validated_uploads = 0
 
         collection = self.irods_client.collection_object
         for coll, sub, files in collection.walk():
             for file_obj in files:
-                total += 1
+                total_uploads += 1
 
                 min_path = file_obj.path.replace("/nlmumc/projects/", "")
                 if len(self.restrict_list) > 0 and (min_path not in self.restrict_list):
@@ -174,7 +183,7 @@ class DataverseClient:
                 if validated_checksum and validated_upload:
                     validated_uploads += 1
 
-        if total == validated_uploads:
+        if total_uploads == validated_uploads:
             return True
 
         return False
@@ -198,6 +207,9 @@ class DataverseClient:
         """
         logger.info(f"{'--':<20}Upload file zipped")
         logger.debug(f"{'--':<20}Upload file zipped {file_obj.name} - {file_obj.size}")
+
+        file_upload_status = Status.UPLOADING_FILE.value.format(file_obj.name)
+        self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, file_upload_status)
 
         zip_buffer_size = calculate_zip_buffer_size(file_obj, self.upload_checksums_dict)
         logger.debug(f"{'--':<20}Upload size_bundle - {zip_buffer_size}")
@@ -247,7 +259,6 @@ class DataverseClient:
         bool
             True, if successful.
         """
-        self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.VALIDATE_CHECKSUM.value)
         validated = False
 
         path, file = ntpath.split(file_path)
@@ -280,37 +291,37 @@ class DataverseClient:
         bool
             True, if successful.
         """
-        self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.VALIDATE_UPLOAD.value)
         validated = False
 
-        if response.status_code == HTTPStatus.OK.value:
-            for file_json in response.json()["data"]["files"]:
-                # Check if the file is at the root of the collection
-                if "directoryLabel" in file_json:
-                    file_path = (
-                        f"{self.irods_client.collection_object.path}/{file_json['directoryLabel']}/"
-                        f"{file_json['dataFile']['filename']}"
-                    )
-                else:
-                    file_path = f"{self.irods_client.collection_object.path}/{file_json['dataFile']['filename']}"
-
-                # Dataverse rename '.metadata_versions' sub-folder path by removing the '.'
-                # So we need to revert it back to be able to compare the md5 checksums values
-                metadata_version_dataverse = self.irods_client.collection_object.path + "/metadata_versions/"
-                metadata_version_irods = self.irods_client.collection_object.path + "/.metadata_versions/"
-                file_path = file_path.replace(metadata_version_dataverse, metadata_version_irods)
-
-                # index 1 -> md5_hexdigest
-                if file_json["dataFile"]["md5"] == self.upload_checksums_dict[file_path][1]:
-                    # count += 1
-                    validated = True
-                    logger.info(f"{'--':<20}iRODS & Dataverse MD5 checksum: validated")
-                    self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.FINALIZE.value)
-                else:
-                    logger.error(f"{'--':<20}iRODS & Dataverse MD5 checksum: failed")
-                    self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.UPLOAD_CORRUPTED.value)
-        else:
+        if response.status_code != HTTPStatus.OK.value:
             logger.error(f"{'--':<30}{response.content.decode('utf-8')}")
+
+            return validated
+
+        for file_json in response.json()["data"]["files"]:
+            # Check if the file is at the root of the collection
+            if "directoryLabel" in file_json:
+                file_path = (
+                    f"{self.irods_client.collection_object.path}/{file_json['directoryLabel']}/"
+                    f"{file_json['dataFile']['filename']}"
+                )
+            else:
+                file_path = f"{self.irods_client.collection_object.path}/{file_json['dataFile']['filename']}"
+
+            # Dataverse rename '.metadata_versions' sub-folder path by removing the '.'
+            # So we need to revert it back to be able to compare the md5 checksums values
+            metadata_version_dataverse = self.irods_client.collection_object.path + "/metadata_versions/"
+            metadata_version_irods = self.irods_client.collection_object.path + "/.metadata_versions/"
+            file_path = file_path.replace(metadata_version_dataverse, metadata_version_irods)
+
+            # index 1 -> md5_hexdigest
+            if file_json["dataFile"]["md5"] == self.upload_checksums_dict[file_path][1]:
+                # count += 1
+                validated = True
+                logger.info(f"{'--':<20}iRODS & Dataverse MD5 checksum: validated")
+            else:
+                logger.error(f"{'--':<20}iRODS & Dataverse MD5 checksum: failed")
+                self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.UPLOAD_CORRUPTED.value)
 
         return validated
 
@@ -367,6 +378,8 @@ class DataverseClient:
             resp_user = requests.post(endpoint, json=data_user, auth=(user, pwd))
         except ProxyError:
             logger.error(endpoint + " cannot be reached. Send e-mail confirmation failed")
+
+            return
 
         if resp_user.status_code == HTTPStatus.OK.value:
             logger.info(f"Reporting e-mail confirmation sent to {self.depositor}")

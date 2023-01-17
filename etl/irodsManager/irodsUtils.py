@@ -309,6 +309,7 @@ class ExporterState(Enum):
     PREPARE_COLLECTION = "prepare-collection"
     ZIP_COLLECTION = "zip-collection"
     UPLOAD_ZIPPED_COLLECTION = "upload-zipped-collection"
+    UPLOADING_FILE = "uploading file - {}"
     VALIDATE_UPLOAD = "validate-upload"
     VALIDATE_CHECKSUM = "validate-checksum"
 
