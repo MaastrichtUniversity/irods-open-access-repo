@@ -220,10 +220,11 @@ def create_zip_buffer_generator(file_obj, stream_buffer, upload_checksums_dict):
 
     sha_hex_digest = irods_sha.hexdigest()
     md5_hex_digest = irods_md5.hexdigest()
-    # index 0 -> sha_hex_digest
-    # index 1 -> md5_hex_digest
-    hex_digest_list = [sha_hex_digest, md5_hex_digest]
-    upload_checksums_dict.update({file_obj.path: hex_digest_list})
+
+    # str: irods data object path => sha_hex_digest
+    upload_checksums_dict.update({file_obj.path: sha_hex_digest})
+    # str: dataverse relative file path => md5_hex_digest
+    upload_checksums_dict.update({zip_file_path: md5_hex_digest})
 
     zip_buffer.close()
     yield

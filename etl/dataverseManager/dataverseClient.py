@@ -60,8 +60,8 @@ class DataverseClient:
         self.dataset_pid = None
         self.dataset_url = None
 
-        # Key -> str: data object path
-        # Value -> List: [index 0 = sha_hexdigest; index 1 = md5_hexdigest]
+        # str: irods data object path => sha_hex_digest
+        # str: dataverse relative file path => md5_hex_digest
         self.upload_checksums_dict = {}
 
         self.zip_name = irods_client.instance.title.title + ".zip"
@@ -261,14 +261,7 @@ class DataverseClient:
         """
         validated = False
 
-        path, file = ntpath.split(file_path)
-        # Filter out specials characters in the key
-        zip_file_path = re.sub(r"[\\\(\)\[\]\{\}\$\%\&\+@~'€!\^]", "_", path)
-        zip_file_path = re.sub(r"[\\:\*\?\"<>\|;#]", "_", zip_file_path)
-        zip_file_name = re.sub(r"[\\:\*\?\"<>\|;#]", "_", file)
-        filtered_path = zip_file_path + "/" + zip_file_name
-
-        if self.upload_checksums_dict[filtered_path][0] == checksum:
+        if self.upload_checksums_dict[file_path] == checksum:
             validated = True
             logger.info(f"{'--':<20}iRODS & buffer SHA-256 checksum: validated")
         else:
@@ -301,21 +294,20 @@ class DataverseClient:
         for file_json in response.json()["data"]["files"]:
             # Check if the file is at the root of the collection
             if "directoryLabel" in file_json:
-                file_path = (
-                    f"{self.irods_client.collection_object.path}/{file_json['directoryLabel']}/"
-                    f"{file_json['dataFile']['filename']}"
-                )
+                file_path = f"/{file_json['directoryLabel']}/" f"{file_json['dataFile']['filename']}"
             else:
-                file_path = f"{self.irods_client.collection_object.path}/{file_json['dataFile']['filename']}"
+                file_path = file_json["dataFile"]["filename"]
+                logger.info(f"{'--':<20}iRODS & Dataverse MD5 checksum: filename")
 
             # Dataverse rename '.metadata_versions' sub-folder path by removing the '.'
             # So we need to revert it back to be able to compare the md5 checksums values
-            metadata_version_dataverse = self.irods_client.collection_object.path + "/metadata_versions/"
-            metadata_version_irods = self.irods_client.collection_object.path + "/.metadata_versions/"
+            metadata_version_dataverse = "/metadata_versions/"
+            metadata_version_irods = "/.metadata_versions/"
             file_path = file_path.replace(metadata_version_dataverse, metadata_version_irods)
+            logger.debug(f"{'--':<20}iRODS & Dataverse MD5 checksum: {file_path}")
 
             # index 1 -> md5_hexdigest
-            if file_json["dataFile"]["md5"] == self.upload_checksums_dict[file_path][1]:
+            if file_json["dataFile"]["md5"] == self.upload_checksums_dict[file_path]:
                 # count += 1
                 validated = True
                 logger.info(f"{'--':<20}iRODS & Dataverse MD5 checksum: validated")
