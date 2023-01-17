@@ -141,6 +141,7 @@ class DataverseClient:
             self._email_confirmation()
             self._submit_dataset_for_review()
         else:
+            logger.error(f"{'--':<20}Export failed")
             self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.UPLOAD_CORRUPTED.value)
 
     def _upload_files(self) -> bool:
@@ -164,11 +165,10 @@ class DataverseClient:
         collection = self.irods_client.collection_object
         for coll, sub, files in collection.walk():
             for file_obj in files:
-                total_uploads += 1
-
                 min_path = file_obj.path.replace("/nlmumc/projects/", "")
                 if len(self.restrict_list) > 0 and (min_path not in self.restrict_list):
                     continue
+                total_uploads += 1
 
                 logger.info(f"{'--':<15}Start upload file: {file_obj.path}")
 
