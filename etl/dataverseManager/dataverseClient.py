@@ -1,9 +1,7 @@
 import io
 import json
 import logging
-import ntpath
 import os
-import re
 import time
 from http import HTTPStatus
 
@@ -12,9 +10,8 @@ from requests import Response
 from requests.exceptions import ProxyError
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
+from etl.dataverseManager.uploadUtils import calculate_zip_buffer_size, get_zip_iterator
 from etl.irodsManager.irodsUtils import (
-    get_zip_iterator,
-    calculate_zip_buffer_size,
     ExporterState as Status,
     get_irods_data_object_checksum_value,
 )
@@ -308,7 +305,6 @@ class DataverseClient:
 
             # index 1 -> md5_hexdigest
             if file_json["dataFile"]["md5"] == self.upload_checksums_dict[file_path]:
-                # count += 1
                 validated = True
                 logger.info(f"{'--':<20}iRODS & Dataverse MD5 checksum: validated")
             else:
