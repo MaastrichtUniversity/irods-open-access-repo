@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<files xmlns:dcterms="http://purl.org/dc/terms/">
-    <file filepath="data/metadata.xml">
-        <dcterms:format>application/xml</dcterms:format>
-    </file>
-</files>
-

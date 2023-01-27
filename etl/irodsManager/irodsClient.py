@@ -3,7 +3,7 @@ import logging
 
 from irodsrulewrapper.rule import RuleManager
 
-from irodsManager.irodsUtils import CollectionAVU, ExporterState
+from etl.irodsManager.irodsUtils import CollectionAVU, ExporterState
 
 logger = logging.getLogger("iRODS to Dataverse")
 
