@@ -86,8 +86,11 @@ class DataverseClient:
                 headers={"Content-type": "application/json", "X-Dataverse-key": self.token},
             )
         except ProxyError:
-            logger.error(self.host + " cannot be reached. Create dataset failed")
-            self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.CREATE_DATASET_FAILED.value)
+            error_message = self.host + " cannot be reached. Create dataset failed"
+            logger.error(error_message)
+            self.irods_client.set_error_status(
+                Status.ATTRIBUTE.value, Status.CREATE_DATASET_FAILED.value, self.depositor, self.alias, error_message
+            )
 
             return
 
@@ -99,7 +102,9 @@ class DataverseClient:
         else:
             logger.error(f"{'--':<20}Create dataset failed")
             logger.error(response.content)
-            self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.CREATE_DATASET_FAILED.value)
+            self.irods_client.set_error_status(
+                Status.ATTRIBUTE.value, Status.CREATE_DATASET_FAILED.value, self.depositor, self.alias, response.content
+            )
 
             return
 
@@ -126,8 +131,11 @@ class DataverseClient:
             self.restrict_list = restrict_list
 
         if self.dataset_deposit_url is None:
-            logger.error(f"{'--':<20}Dataset unknown")
-            self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.DATASET_UNKNOWN.value)
+            error_message = "Dataset unknown"
+            logger.error(f"{'--':<20}{error_message}")
+            self.irods_client.set_error_status(
+                Status.ATTRIBUTE.value, Status.DATASET_UNKNOWN.value, self.depositor, self.alias, error_message
+            )
 
             return
 
@@ -138,8 +146,11 @@ class DataverseClient:
             self._email_confirmation()
             self._submit_dataset_for_review()
         else:
-            logger.error(f"{'--':<20}Export failed")
-            self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.UPLOAD_CORRUPTED.value)
+            error_message = "Export failed"
+            logger.error(f"{'--':<20}{error_message}")
+            self.irods_client.set_error_status(
+                Status.ATTRIBUTE.value, Status.UPLOAD_CORRUPTED.value, self.depositor, self.alias, error_message
+            )
 
     def _upload_files(self) -> bool:
         """
@@ -235,8 +246,11 @@ class DataverseClient:
                 },
             )
         except ProxyError:
-            logger.error(self.host + " cannot be reached. Upload data failed")
-            self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.UPLOAD_FAILED.value)
+            error_message = self.host + " cannot be reached. Upload data failed"
+            logger.error(f"{'--':<20}{error_message}")
+            self.irods_client.set_error_status(
+                Status.ATTRIBUTE.value, Status.UPLOAD_FAILED.value, self.depositor, self.alias, error_message
+            )
 
         return response
 
@@ -262,8 +276,11 @@ class DataverseClient:
             validated = True
             logger.info(f"{'--':<20}iRODS & buffer SHA-256 checksum: validated")
         else:
-            logger.error(f"{'--':<20}iRODS & buffer SHA-256 checksum: failed")
-            self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.UPLOAD_CORRUPTED.value)
+            error_message = "iRODS & buffer SHA-256 checksum: failed"
+            logger.error(f"{'--':<20}{error_message}")
+            self.irods_client.set_error_status(
+                Status.ATTRIBUTE.value, Status.UPLOAD_CORRUPTED.value, self.depositor, self.alias, error_message
+            )
 
         return validated
 
@@ -308,8 +325,11 @@ class DataverseClient:
                 validated = True
                 logger.info(f"{'--':<20}iRODS & Dataverse MD5 checksum: validated")
             else:
-                logger.error(f"{'--':<20}iRODS & Dataverse MD5 checksum: failed")
-                self.irods_client.update_metadata_status(Status.ATTRIBUTE.value, Status.UPLOAD_CORRUPTED.value)
+                error_message = "iRODS & Dataverse MD5 checksum: failed"
+                logger.error(f"{'--':<20}{error_message}")
+                self.irods_client.set_error_status(
+                    Status.ATTRIBUTE.value, Status.UPLOAD_CORRUPTED.value, self.depositor, self.alias, error_message
+                )
 
         return validated
 
@@ -395,5 +415,8 @@ class DataverseClient:
                 logger.error(resp.status_code)
                 logger.error(resp.content)
         except ProxyError:
-            logger.error(self.host + " cannot be reached. Submit for review failed")
-            self.irods_client.add_metadata(Status.ATTRIBUTE.value, f"Dataverse:{Status.REQUEST_REVIEW_FAILED}")
+            error_message = self.host + " cannot be reached. Submit for review failed"
+            logger.error(f"{'--':<20}{error_message}")
+            self.irods_client.set_error_status(
+                Status.ATTRIBUTE.value, Status.REQUEST_REVIEW_FAILED.value, self.depositor, self.alias, error_message
+            )
