@@ -91,11 +91,11 @@ class ExporterState(Enum):
     VALIDATE_UPLOAD = "validate-upload"
     VALIDATE_CHECKSUM = "validate-checksum"
 
-    DATASET_UNKNOWN = "dataset-unknown"
-    CREATE_DATASET_FAILED = "create-dataset-failed"
-    UPLOAD_FAILED = "upload-failed"
-    UPLOAD_CORRUPTED = "upload-corrupted"
-    REQUEST_REVIEW_FAILED = "request-review-failed"
+    DATASET_UNKNOWN = "error-dataset-unknown"
+    CREATE_DATASET_FAILED = "error-create-dataset-failed"
+    UPLOAD_FAILED = "error-upload-failed"
+    UPLOAD_CORRUPTED = "error-upload-corrupted"
+    REQUEST_REVIEW_FAILED = "error-request-review-failed"
 
     FINALIZE = "finalize"
     EXPORTED = "exported"
