@@ -1,8 +1,10 @@
--e git+https://github.com/MaastrichtUniversity/irods-rule-wrapper.git@2022.2.1#egg=irods-rule-wrapper
+-e git+https://github.com/MaastrichtUniversity/irods-rule-wrapper.git@2023.1.1#egg=irods-rule-wrapper
 lxml>=4.2.5,<5.0.0
 requests>=2.20.0,<3.0.0
 bleach>=3.0.2,<4.0.0
 pika>=1.2.0,<2.0.0
 tqdm>=4.32.1,<5.0.0
+# requests-toolbelt is currently not compatible with urllib3 versions above v2.0.0
+urllib3>1.0.0,<2.0.0
 requests-toolbelt>=0.9.1,<1.0.0
 

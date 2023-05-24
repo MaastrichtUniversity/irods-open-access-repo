@@ -3,7 +3,7 @@ import logging
 
 from irodsrulewrapper.rule import RuleManager
 
-from etl.irodsManager.irodsUtils import CollectionAVU, ExporterState
+from etl.irodsManager.irodsUtils import CollectionAVU, ExporterState, submit_service_desk_ticket
 
 logger = logging.getLogger("iRODS to Dataverse")
 
@@ -68,6 +68,36 @@ class irodsClient:
     def update_metadata_status(self, attribute, value):
         new_status = f"{self.repository}:{value}"
         self.rule_manager.set_collection_avu(self.collection_object.path, attribute, new_status)
+
+    def set_error_status(self, attribute, value, depositor, destination, error_message):
+        """
+        Update the state AVU to an error status.
+        Then, create a ticket to jira the service desk to report the error.
+
+        Parameters
+        ----------
+        attribute: str
+            The process attribute
+        value: str
+            The new value to set
+        depositor: str
+            The email of the user who started the process
+        destination: str
+            The dataverse upload destination
+        error_message: str
+            Some context on what trigger the error
+        """
+        try:
+            self.update_metadata_status(attribute, value)
+        except iRODSException as error:
+            logger.error(f"{'--':<20}update_metadata_status failed: {error}")
+
+        description = (
+            f"DataVerseNL export towards {destination} failed for collection {self.collection_id}"
+            f" in project {self.project_id}"
+        )
+        error_message = f"{value}: {error_message}"
+        submit_service_desk_ticket(depositor, description, error_message)
 
     def remove_metadata(self, key, value):
         try:

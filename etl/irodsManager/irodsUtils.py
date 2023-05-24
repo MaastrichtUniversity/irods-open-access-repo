@@ -1,6 +1,12 @@
 import base64
 import binascii
+import requests
+import os
+import logging
+from datetime import datetime
 from enum import Enum
+
+logger = logging.getLogger("iRODS to Dataverse")
 
 
 def get_irods_data_object_checksum_value(file_obj) -> str:
@@ -25,6 +31,50 @@ def get_irods_data_object_checksum_value(file_obj) -> str:
     return binascii.hexlify(base_hash).decode("utf-8")
 
 
+def submit_service_desk_ticket(email, description, error_message):
+    """
+    Submit an automated support request to the Jira Service Desk Cloud instance through
+    our help center backend.
+
+    Parameters
+    ----------
+    email: str
+        The email of the user who started the process
+    description: str
+       Description to be shown in the ticket
+    error_message: str
+        Error message to display in Jira Service Desk
+    """
+    # Get the Help Center Backend url
+    help_center_backend_base = os.environ.get("HC_BACKEND_URL")
+    help_center_request_endpoint = "{}/help_backend/submit_request/automated_process_support".format(
+        help_center_backend_base
+    )
+
+    error_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    request_json = {
+        "email": email,
+        "description": description,
+        "error_timestamp": error_timestamp,
+        "error_message": error_message,
+    }
+
+    try:
+        response = requests.post(
+            help_center_request_endpoint,
+            json=request_json,
+        )
+        if response.ok:
+            issue_key = response.json()["issueKey"]
+            logger.error(f"{'--':<20}Support ticket '{issue_key}' created after process error")
+
+        else:
+            logger.error(f"{'--':<20}Response Help center backend not HTTP OK: '{response.status_code}'")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"{'--':<20}Exception while requesting Support ticket after process error '{e}'")
+
+
 class ExporterState(Enum):
     """Enum exporter state"""
 
@@ -41,11 +91,11 @@ class ExporterState(Enum):
     VALIDATE_UPLOAD = "validate-upload"
     VALIDATE_CHECKSUM = "validate-checksum"
 
-    DATASET_UNKNOWN = "dataset-unknown"
-    CREATE_DATASET_FAILED = "create-dataset-failed"
-    UPLOAD_FAILED = "upload-failed"
-    UPLOAD_CORRUPTED = "upload-corrupted"
-    REQUEST_REVIEW_FAILED = "request-review-failed"
+    DATASET_UNKNOWN = "error-dataset-unknown"
+    CREATE_DATASET_FAILED = "error-create-dataset-failed"
+    UPLOAD_FAILED = "error-upload-failed"
+    UPLOAD_CORRUPTED = "error-upload-corrupted"
+    REQUEST_REVIEW_FAILED = "error-request-review-failed"
 
     FINALIZE = "finalize"
     EXPORTED = "exported"
